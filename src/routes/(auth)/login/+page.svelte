@@ -56,12 +56,12 @@
 	}
 </script>
 
-<svelte:head><title>Calia — Sign in</title></svelte:head>
+<svelte:head><title>Citium — Sign in</title></svelte:head>
 
 <main class="page">
 	<div class="panel rise">
 		<div class="brand">
-			<span class="mark">Calia</span>
+			<span class="mark">Citium</span>
 			<span class="sub">planner</span>
 		</div>
 

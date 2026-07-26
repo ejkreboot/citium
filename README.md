@@ -1,4 +1,4 @@
-# Calia
+# Citium
 
 A calm academic planner — schedule (year / month / day), homework tracker, a
 scratchpad, and a daily inspiring thought. Built with SvelteKit + Supabase.

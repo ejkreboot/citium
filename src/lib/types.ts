@@ -1,4 +1,4 @@
-// Domain types for Calia. These mirror the Supabase schema (snake_case columns)
+// Domain types for Citium. These mirror the Supabase schema (snake_case columns)
 // so rows returned by supabase-js can be used directly.
 
 export type UUID = string;

@@ -45,7 +45,7 @@
 	let theme = $state<'light' | 'dark'>('light');
 
 	$effect(() => {
-		const saved = localStorage.getItem('calia-theme');
+		const saved = localStorage.getItem('citium-theme');
 		const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
 		theme = (saved as 'light' | 'dark') ?? (prefersDark ? 'dark' : 'light');
 		apply();
@@ -56,7 +56,7 @@
 	}
 	function toggleTheme() {
 		theme = theme === 'light' ? 'dark' : 'light';
-		localStorage.setItem('calia-theme', theme);
+		localStorage.setItem('citium-theme', theme);
 		apply();
 	}
 </script>
@@ -64,7 +64,7 @@
 <div class="shell">
 	<aside class="sidebar">
 		<a href="/" class="brand">
-			<span class="brand-mark">Calia</span>
+			<span class="brand-mark">Citium</span>
 			<span class="brand-sub">planner</span>
 		</a>
 
