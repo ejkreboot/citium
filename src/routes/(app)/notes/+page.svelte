@@ -63,8 +63,7 @@
 					placeholder="Write a reminder…"
 					rows="3"
 					oninput={(e) => planner.updateNote(n.id, e.currentTarget.value)}
-					use:autofocus={n.id}
-				></textarea>
+					use:autofocus={n.id}></textarea>
 			</div>
 		{/each}
 	</div>
@@ -73,7 +72,9 @@
 		<Icon name="edit_note" size={30} />
 		<p>Your scratchpad is empty.</p>
 		<p class="faint">Jot down reminders, office hours, anything.</p>
-		<button class="btn" onclick={add} style="margin-top:0.75rem"><Icon name="add" size={18} /> New note</button>
+		<button class="btn" onclick={add} style="margin-top:0.75rem"
+			><Icon name="add" size={18} /> New note</button
+		>
 	</div>
 {/if}
 
@@ -109,8 +110,7 @@
 		box-shadow: var(--shadow-md);
 	}
 	.note.pinned {
-		background:
-			linear-gradient(0deg, var(--amber-tint), var(--amber-tint)), var(--surface);
+		background: linear-gradient(0deg, var(--amber-tint), var(--amber-tint)), var(--surface);
 		border-color: color-mix(in srgb, var(--amber) 35%, var(--line));
 	}
 	.note-tools {

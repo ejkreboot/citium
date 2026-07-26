@@ -13,7 +13,9 @@
 <span
 	class="sym"
 	class:fill
-	style="font-size:{size}px; font-variation-settings:'FILL' {fill ? 1 : 0},'wght' {weight},'GRAD' 0,'opsz' {size};"
+	style="font-size:{size}px; font-variation-settings:'FILL' {fill
+		? 1
+		: 0},'wght' {weight},'GRAD' 0,'opsz' {size};"
 	aria-hidden={label ? undefined : 'true'}
 	role={label ? 'img' : undefined}
 	aria-label={label}>{name}</span

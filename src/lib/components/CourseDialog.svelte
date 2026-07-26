@@ -2,7 +2,8 @@
 	import { planner } from '$lib/planner.svelte';
 	import { COURSE_PALETTE } from '$lib/mock';
 	import { WEEKDAYS } from '$lib/date';
-	import type { Course } from '$lib/types';
+	import { courseRange, halfTermBoundary, rangeLabel } from '$lib/schedule';
+	import type { Course, CourseSession } from '$lib/types';
 	import Icon from './Icon.svelte';
 
 	let { open = $bindable(false), editing = null }: { open?: boolean; editing?: Course | null } =
@@ -22,17 +23,53 @@
 	let instructor = $state('');
 	let location = $state('');
 	let color = $state(COURSE_PALETTE[0]);
+	let termId = $state<string | null>(null);
+	let session = $state<CourseSession>('full');
+	let customStart = $state('');
+	let customEnd = $state('');
 	let blocks = $state<Block[]>([{ days: [], start: '09:00', end: '09:50' }]);
+
+	const term = $derived(planner.termById(termId));
+
+	// Half-term options only exist relative to a term; without one, a course
+	// either recurs indefinitely or runs between explicit dates.
+	const sessions = $derived<Array<{ value: CourseSession; label: string }>>(
+		term
+			? [
+					{ value: 'full', label: 'Full term' },
+					{ value: 'first_half', label: 'First half' },
+					{ value: 'second_half', label: 'Second half' },
+					{ value: 'custom', label: 'Custom dates' }
+				]
+			: [
+					{ value: 'full', label: 'No end date' },
+					{ value: 'custom', label: 'Custom dates' }
+				]
+	);
+
+	// Live preview of the dates this course will actually meet, so the effect of
+	// a half-term or custom selection is visible before saving.
+	const preview = $derived(
+		rangeLabel(
+			courseRange(
+				{
+					session,
+					start_date: session === 'custom' ? customStart || null : null,
+					end_date: session === 'custom' ? customEnd || null : null
+				} as Course,
+				term
+			)
+		)
+	);
 
 	function blocksFromMeetings(courseId: string): Block[] {
 		const ms = planner.meetingsFor(courseId);
-		const map = new Map<string, Block>();
+		const byTime: Record<string, Block> = {};
 		for (const m of ms) {
 			const key = `${m.start_time}-${m.end_time}`;
-			if (!map.has(key)) map.set(key, { days: [], start: m.start_time, end: m.end_time });
-			map.get(key)!.days.push(m.day_of_week);
+			(byTime[key] ??= { days: [], start: m.start_time, end: m.end_time }).days.push(m.day_of_week);
 		}
-		const out = [...map.values()];
+		const out = Object.values(byTime);
 		return out.length ? out : [{ days: [], start: '09:00', end: '09:50' }];
 	}
 
@@ -43,6 +80,10 @@
 			instructor = editing.instructor ?? '';
 			location = editing.location ?? '';
 			color = editing.color;
+			termId = editing.term_id;
+			session = editing.session;
+			customStart = editing.start_date ?? '';
+			customEnd = editing.end_date ?? '';
 			blocks = blocksFromMeetings(editing.id);
 		} else {
 			title = '';
@@ -50,8 +91,28 @@
 			instructor = '';
 			location = '';
 			color = COURSE_PALETTE[planner.courses.length % COURSE_PALETTE.length];
+			termId = planner.activeTerm?.id ?? null;
+			session = 'full';
+			customStart = '';
+			customEnd = '';
 			blocks = [{ days: [], start: '09:00', end: '09:50' }];
 		}
+	}
+
+	/**
+	 * Seed empty custom dates from the selected term so the date inputs open on
+	 * something sensible rather than blank.
+	 */
+	function onSessionChange() {
+		if (session !== 'custom') return;
+		const t = planner.termById(termId);
+		if (!customStart) customStart = t?.start_date ?? '';
+		if (!customEnd) customEnd = t ? halfTermBoundary(t).firstEnd : '';
+	}
+
+	/** Half-term sessions are meaningless without a term to split. */
+	function onTermChange() {
+		if (!termId && (session === 'first_half' || session === 'second_half')) session = 'full';
 	}
 
 	$effect(() => {
@@ -76,14 +137,19 @@
 	function submit(e: Event) {
 		e.preventDefault();
 		if (!title.trim()) return;
-		const term = planner.activeTerm;
+		// A custom session needs a well-formed range (the DB enforces this too).
+		const custom = session === 'custom';
+		if (custom && (!customStart || !customEnd || customStart > customEnd)) return;
 		const data = {
-			term_id: term?.id ?? null,
+			term_id: termId,
 			title: title.trim(),
 			code: code.trim() || null,
 			instructor: instructor.trim() || null,
 			location: location.trim() || null,
-			color
+			color,
+			session,
+			start_date: custom ? customStart : null,
+			end_date: custom ? customEnd : null
 		};
 		const courseId = editing ? editing.id : planner.addCourse(data).id;
 		if (editing) planner.updateCourse(courseId, data);
@@ -105,7 +171,12 @@
 	<form onsubmit={submit}>
 		<div class="dlg-head">
 			<h2>{editing ? 'Edit course' : 'New course'}</h2>
-			<button type="button" class="btn btn-icon btn-ghost" onclick={() => (open = false)} aria-label="Close">
+			<button
+				type="button"
+				class="btn btn-icon btn-ghost"
+				onclick={() => (open = false)}
+				aria-label="Close"
+			>
 				<Icon name="close" size={20} />
 			</button>
 		</div>
@@ -114,7 +185,13 @@
 			<div class="field grow">
 				<label for="c-title">Course name</label>
 				<!-- svelte-ignore a11y_autofocus -->
-				<input id="c-title" type="text" bind:value={title} placeholder="Introduction to Psychology" autofocus />
+				<input
+					id="c-title"
+					type="text"
+					bind:value={title}
+					placeholder="Introduction to Psychology"
+					autofocus
+				/>
 			</div>
 			<div class="field code-field">
 				<label for="c-code">Code</label>
@@ -132,6 +209,51 @@
 				<input id="c-loc" type="text" bind:value={location} placeholder="Hale Hall 204" />
 			</div>
 		</div>
+
+		<div class="two">
+			<div class="field">
+				<label for="c-term">Term</label>
+				<select id="c-term" bind:value={termId} onchange={onTermChange}>
+					<option value={null}>No term</option>
+					{#each planner.sortedTerms as t (t.id)}
+						<option value={t.id}>{t.name}</option>
+					{/each}
+				</select>
+			</div>
+			<div class="field">
+				<label for="c-session">Runs for</label>
+				<select id="c-session" bind:value={session} onchange={onSessionChange}>
+					{#each sessions as s (s.value)}
+						<option value={s.value}>{s.label}</option>
+					{/each}
+				</select>
+			</div>
+		</div>
+
+		{#if session === 'custom'}
+			<div class="two">
+				<div class="field">
+					<label for="c-start">Starts</label>
+					<input id="c-start" type="date" bind:value={customStart} />
+				</div>
+				<div class="field">
+					<label for="c-end">Ends</label>
+					<input id="c-end" type="date" bind:value={customEnd} />
+				</div>
+			</div>
+		{/if}
+
+		{#if preview}
+			<p class="range-hint">
+				<Icon name="event_available" size={15} />
+				Meets {preview}
+			</p>
+		{:else}
+			<p class="range-hint">
+				<Icon name="all_inclusive" size={15} />
+				Repeats weekly with no end date — assign a term to bound it.
+			</p>
+		{/if}
 
 		<div class="field">
 			<span class="glabel" id="color-lbl">Color</span>
@@ -174,7 +296,12 @@
 							<span class="dash">–</span>
 							<input type="time" bind:value={b.end} aria-label="End time" />
 							{#if blocks.length > 1}
-								<button type="button" class="tool" onclick={() => removeBlock(i)} aria-label="Remove meeting time">
+								<button
+									type="button"
+									class="tool"
+									onclick={() => removeBlock(i)}
+									aria-label="Remove meeting time"
+								>
 									<Icon name="close" size={16} />
 								</button>
 							{/if}
@@ -251,6 +378,22 @@
 		grid-template-columns: 1fr auto;
 	}
 
+	.range-hint {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		margin-top: -0.35rem;
+		padding: 0.5rem 0.7rem;
+		border-radius: var(--r-md);
+		background: var(--paper);
+		font-size: var(--t-sm);
+		color: var(--muted);
+	}
+	.range-hint :global(.sym) {
+		color: var(--iris);
+		flex-shrink: 0;
+	}
+
 	.swatches {
 		display: flex;
 		gap: 0.5rem;
@@ -267,7 +410,9 @@
 		color: #fff;
 	}
 	.sw.sel {
-		box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px currentColor;
+		box-shadow:
+			0 0 0 2px var(--surface),
+			0 0 0 4px currentColor;
 	}
 
 	.blocks {

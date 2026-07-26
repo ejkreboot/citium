@@ -28,9 +28,9 @@ Open http://localhost:5180.
 
 Environment variables (`.env.local`):
 
-| Variable | Where to find it |
-| --- | --- |
-| `PUBLIC_SUPABASE_URL` | Supabase dashboard → Project Settings → API |
+| Variable                   | Where to find it                                      |
+| -------------------------- | ----------------------------------------------------- |
+| `PUBLIC_SUPABASE_URL`      | Supabase dashboard → Project Settings → API           |
 | `PUBLIC_SUPABASE_ANON_KEY` | Same page — the publishable / anon key (browser-safe) |
 
 ## Database
@@ -59,10 +59,10 @@ The app uses `@sveltejs/adapter-vercel`; no extra Vercel config is required.
 
 ## Scripts
 
-| Command | Description |
-| --- | --- |
-| `npm run dev` | Start the dev server on port 5180 |
-| `npm run build` | Production build |
-| `npm run preview` | Preview the production build |
-| `npm run check` | Type-check with `svelte-check` |
-| `npm run lint` / `npm run format` | Prettier + ESLint |
+| Command                           | Description                       |
+| --------------------------------- | --------------------------------- |
+| `npm run dev`                     | Start the dev server on port 5180 |
+| `npm run build`                   | Production build                  |
+| `npm run preview`                 | Preview the production build      |
+| `npm run check`                   | Type-check with `svelte-check`    |
+| `npm run lint` / `npm run format` | Prettier + ESLint                 |

@@ -232,6 +232,21 @@ h4 {
 .btn:active {
 	transform: translateY(1px);
 }
+.btn:disabled {
+	opacity: 0.45;
+	cursor: not-allowed;
+}
+.btn:disabled:hover {
+	background: var(--surface);
+	border-color: var(--line);
+}
+.btn-primary:disabled:hover {
+	background: var(--iris);
+	border-color: var(--iris);
+}
+.btn:disabled:active {
+	transform: none;
+}
 .btn .sym {
 	font-size: 19px;
 }

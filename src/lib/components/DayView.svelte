@@ -1,10 +1,9 @@
 <script lang="ts">
 	import { planner } from '$lib/planner.svelte';
 	import { occurrencesOn } from '$lib/schedule';
-	import { dayKey, WEEKDAYS_LONG, MONTHS, isToday } from '$lib/date';
+	import { dayKey, isToday } from '$lib/date';
 	import ClassItem from './ClassItem.svelte';
 	import AssignmentItem from './AssignmentItem.svelte';
-	import Icon from './Icon.svelte';
 
 	let { date }: { date: Date } = $props();
 

@@ -47,6 +47,10 @@ export function addDays(d: Date, n: number): Date {
 	return r;
 }
 
+export function addWeeks(d: Date, n: number): Date {
+	return addDays(d, n * 7);
+}
+
 export function addMonths(d: Date, n: number): Date {
 	const r = new Date(d);
 	r.setMonth(r.getMonth() + n);
@@ -63,6 +67,22 @@ export function endOfMonth(d: Date): Date {
 
 export function isSameDay(a: Date, b: Date): boolean {
 	return dayKey(a) === dayKey(b);
+}
+
+/** Midnight on the first day of the week containing `d`, honoring weekStart. */
+export function startOfWeek(d: Date, weekStart = 0): Date {
+	const r = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+	return addDays(r, -((r.getDay() - weekStart + 7) % 7));
+}
+
+export function endOfWeek(d: Date, weekStart = 0): Date {
+	return addDays(startOfWeek(d, weekStart), 6);
+}
+
+/** The seven Dates of the week containing `d`, in display order. */
+export function weekDays(d: Date, weekStart = 0): Date[] {
+	const start = startOfWeek(d, weekStart);
+	return Array.from({ length: 7 }, (_, i) => addDays(start, i));
 }
 
 export function isToday(key: string): boolean {
@@ -100,6 +120,34 @@ export function formatTime(hhmm: string): string {
 	return m === 0 ? `${h12} ${period}` : `${h12}:${String(m).padStart(2, '0')} ${period}`;
 }
 
+/** "Sep 4" from a Date. */
+export function formatShortDate(d: Date): string {
+	return `${MONTHS_SHORT[d.getMonth()]} ${d.getDate()}`;
+}
+
+/** "Sep 4" from a YYYY-MM-DD key. */
+export function formatDayKey(key: string): string {
+	return formatShortDate(parseDay(key));
+}
+
+/**
+ * Compact inclusive span, e.g. "Sep 1 – 7", "Aug 31 – Sep 6", or
+ * "Dec 28, 2026 – Jan 3, 2027" when the range crosses a year.
+ */
+export function formatDayRange(a: Date, b: Date): string {
+	const sameMonth = a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
+	const sameYear = a.getFullYear() === b.getFullYear();
+	const left = formatShortDate(a);
+	const right = sameMonth ? String(b.getDate()) : formatShortDate(b);
+	if (sameYear) return `${left} – ${right}, ${a.getFullYear()}`;
+	return `${left}, ${a.getFullYear()} – ${right}, ${b.getFullYear()}`;
+}
+
+/** Whole days from `a` to `b`; DST-safe via rounding. */
+export function daysBetween(a: Date, b: Date): number {
+	return Math.round((b.getTime() - a.getTime()) / 86400000);
+}
+
 /** Minutes since midnight from "HH:MM". */
 export function minutesOf(hhmm: string): number {
 	const [h, m] = hhmm.split(':').map(Number);
@@ -111,9 +159,7 @@ export function relativeDue(iso: string, now = new Date()): string {
 	const due = new Date(iso);
 	const dueKey = dayKey(due);
 	const nowKey = dayKey(now);
-	const diffDays = Math.round(
-		(parseDay(dueKey).getTime() - parseDay(nowKey).getTime()) / 86400000
-	);
+	const diffDays = Math.round((parseDay(dueKey).getTime() - parseDay(nowKey).getTime()) / 86400000);
 	if (diffDays === 0) return 'Today';
 	if (diffDays === 1) return 'Tomorrow';
 	if (diffDays === -1) return 'Yesterday';

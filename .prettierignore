@@ -5,5 +5,13 @@ yarn.lock
 bun.lock
 bun.lockb
 
+# Supabase
+# CLI scratch state (already git-ignored via supabase/.gitignore, which Prettier
+# does not read — it only picks up the root .gitignore).
+supabase/.temp/
+# Email templates: inline styles belong on one line for mail clients, and
+# Prettier reflows them across dozens of lines.
+supabase/templates/
+
 # Miscellaneous
 /static/

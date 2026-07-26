@@ -6,6 +6,7 @@
 	import ClassItem from '$lib/components/ClassItem.svelte';
 	import AssignmentItem from '$lib/components/AssignmentItem.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+	import { resolve } from '$app/paths';
 
 	const now = new Date();
 	const quote = quoteForDay(now);
@@ -61,7 +62,8 @@
 	<section class="card panel rise" style="animation-delay: 80ms">
 		<div class="panel-head">
 			<h2>Today's classes</h2>
-			<a href="/schedule" class="see">Schedule <Icon name="arrow_forward" size={16} /></a>
+			<a href={resolve('/schedule')} class="see">Schedule <Icon name="arrow_forward" size={16} /></a
+			>
 		</div>
 		{#if todayClasses.length}
 			<div class="list divided">
@@ -86,7 +88,8 @@
 	<section class="card panel rise" style="animation-delay: 120ms">
 		<div class="panel-head">
 			<h2>Up next</h2>
-			<a href="/homework" class="see">Homework <Icon name="arrow_forward" size={16} /></a>
+			<a href={resolve('/homework')} class="see">Homework <Icon name="arrow_forward" size={16} /></a
+			>
 		</div>
 		{#if upcoming.length}
 			<div class="list divided">
@@ -108,7 +111,7 @@
 	<section class="card panel pins rise" style="animation-delay: 160ms">
 		<div class="panel-head">
 			<h2>Pinned notes</h2>
-			<a href="/notes" class="see">Notes <Icon name="arrow_forward" size={16} /></a>
+			<a href={resolve('/notes')} class="see">Notes <Icon name="arrow_forward" size={16} /></a>
 		</div>
 		<div class="pin-grid">
 			{#each pinned as n (n.id)}
@@ -135,8 +138,7 @@
 		padding: 2rem 2.25rem;
 		margin-bottom: 1.75rem;
 		background:
-			radial-gradient(120% 140% at 100% 0%, var(--iris-tint) 0%, transparent 55%),
-			var(--surface);
+			radial-gradient(120% 140% at 100% 0%, var(--iris-tint) 0%, transparent 55%), var(--surface);
 		overflow: hidden;
 	}
 	.quote-mark {

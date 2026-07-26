@@ -78,7 +78,12 @@
 	<form onsubmit={submit}>
 		<div class="dlg-head">
 			<h2>{editing ? 'Edit assignment' : 'New assignment'}</h2>
-			<button type="button" class="btn btn-icon btn-ghost" onclick={() => (open = false)} aria-label="Close">
+			<button
+				type="button"
+				class="btn btn-icon btn-ghost"
+				onclick={() => (open = false)}
+				aria-label="Close"
+			>
 				<Icon name="close" size={20} />
 			</button>
 		</div>

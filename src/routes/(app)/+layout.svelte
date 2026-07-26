@@ -1,6 +1,8 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
+	import { asset, resolve } from '$app/paths';
 	import Icon from '$lib/components/Icon.svelte';
 	import { planner } from '$lib/planner.svelte';
 
@@ -9,36 +11,50 @@
 	async function signOut() {
 		await data.supabase?.auth.signOut();
 		planner.seeded = false;
-		await goto('/login');
+		await goto(resolve('/login'));
 	}
 
 	// Seed the reactive store from Supabase and connect it for persistence.
 	// The (app) server load guarantees a user (redirects otherwise).
-	planner.connect(data.supabase ?? null, data.user);
-	if (!planner.seeded && data.user) {
-		planner.seed(
-			{
-				terms: data.terms,
-				courses: data.courses,
-				meetings: data.meetings,
-				assignments: data.assignments,
-				notes: data.notes
-			},
-			data.user.id
-		);
-	}
+	//
+	// This runs during init rather than in an $effect on purpose: effects are
+	// client-only, so seeding there would server-render an empty planner and
+	// flash once data arrived. Reading the initial payload is exactly what we
+	// want — the store is the source of truth afterwards, and `seeded` guards
+	// against a later load clobbering unsaved optimistic edits. `untrack` says
+	// that snapshot read is deliberate, which is also what silences
+	// `state_referenced_locally`.
+	untrack(() => {
+		planner.connect(data.supabase ?? null, data.user);
+		if (!planner.seeded && data.user) {
+			planner.seed(
+				{
+					terms: data.terms,
+					courses: data.courses,
+					meetings: data.meetings,
+					assignments: data.assignments,
+					notes: data.notes
+				},
+				data.user.id
+			);
+		}
+	});
+
+	// Hrefs are resolved once so they carry any configured base path — which also
+	// makes them directly comparable to `page.url.pathname` in isActive().
+	const home = resolve('/');
 
 	const nav = [
-		{ href: '/', label: 'Today', icon: 'wb_twilight' },
-		{ href: '/schedule', label: 'Schedule', icon: 'calendar_month' },
-		{ href: '/homework', label: 'Homework', icon: 'checklist' },
-		{ href: '/notes', label: 'Notes', icon: 'edit_note' },
-		{ href: '/courses', label: 'Courses', icon: 'school' }
+		{ href: home, label: 'Today', icon: 'wb_twilight' },
+		{ href: resolve('/schedule'), label: 'Schedule', icon: 'calendar_month' },
+		{ href: resolve('/homework'), label: 'Homework', icon: 'checklist' },
+		{ href: resolve('/notes'), label: 'Notes', icon: 'edit_note' },
+		{ href: resolve('/courses'), label: 'Courses', icon: 'school' }
 	];
 
 	function isActive(href: string): boolean {
 		const path = page.url.pathname;
-		return href === '/' ? path === '/' : path.startsWith(href);
+		return href === home ? path === home : path.startsWith(href);
 	}
 
 	// --- Theme ---
@@ -63,9 +79,25 @@
 
 <div class="shell">
 	<aside class="sidebar">
-		<a href="/" class="brand">
-			<span class="brand-mark">Citium</span>
-			<span class="brand-sub">planner</span>
+		<a href={home} class="brand">
+			<!--
+				Two files rather than one recoloured asset: the mark is swapped by CSS
+				(not by `theme`) so it is correct during SSR and before hydration, and
+				so it follows the same data-theme / prefers-color-scheme precedence as
+				the palette in app.css. Decorative — the wordmark beside it names the app.
+			-->
+			<img class="brand-logo on-light" src={asset('/logo.png')} alt="" width="34" height="34" />
+			<img
+				class="brand-logo on-dark"
+				src={asset('/logo_white.png')}
+				alt=""
+				width="34"
+				height="34"
+			/>
+			<span class="brand-words">
+				<span class="brand-mark">Citium</span>
+				<span class="brand-sub">planner</span>
+			</span>
 		</a>
 
 		<nav class="nav">
@@ -114,22 +146,58 @@
 
 	.brand {
 		display: flex;
-		align-items: baseline;
-		gap: 0.45rem;
+		align-items: center;
+		gap: 0.6rem;
 		padding: 0.25rem 0.6rem 1.5rem;
+	}
+	.brand-logo {
+		width: 34px;
+		height: 34px;
+		flex-shrink: 0;
+		/* The mark is a fine line drawing; keep it crisp when it scales. */
+		object-fit: contain;
+	}
+	.brand-words {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
 	}
 	.brand-mark {
 		font-family: var(--font-display);
-		font-size: 1.6rem;
+		font-size: 1.45rem;
 		font-weight: 500;
 		letter-spacing: -0.02em;
+		line-height: 1.1;
 	}
 	.brand-sub {
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: 0.6rem;
 		letter-spacing: 0.18em;
 		text-transform: uppercase;
 		color: var(--faint);
+	}
+
+	/*
+	 * Light/dark mark swap, mirroring the palette precedence in app.css:
+	 * dark wins on [data-theme='dark'], or on system-dark unless the user has
+	 * explicitly pinned [data-theme='light'].
+	 */
+	.brand-logo.on-dark {
+		display: none;
+	}
+	:global(:root[data-theme='dark']) .brand-logo.on-light {
+		display: none;
+	}
+	:global(:root[data-theme='dark']) .brand-logo.on-dark {
+		display: block;
+	}
+	@media (prefers-color-scheme: dark) {
+		:global(:root:not([data-theme='light'])) .brand-logo.on-light {
+			display: none;
+		}
+		:global(:root:not([data-theme='light'])) .brand-logo.on-dark {
+			display: block;
+		}
 	}
 
 	.nav {

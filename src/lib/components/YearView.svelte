@@ -14,13 +14,12 @@
 	} = $props();
 
 	const dueByDay = $derived.by(() => {
-		const map = new Map<string, Assignment[]>();
+		const byDay: Record<string, Assignment[]> = {};
 		for (const a of planner.assignments) {
 			const k = dayKey(new Date(a.due_at));
-			if (!map.has(k)) map.set(k, []);
-			map.get(k)!.push(a);
+			(byDay[k] ??= []).push(a);
 		}
-		return map;
+		return byDay;
 	});
 
 	function termFor(key: string): Term | undefined {
@@ -31,13 +30,19 @@
 	function daysOf(month: number) {
 		const last = new Date(year, month + 1, 0).getDate();
 		const lead = new Date(year, month, 1).getDay(); // 0=Sun
-		const out: Array<{ n: number | null; key: string; today: boolean; color: string; alpha: number }> =
-			[];
-		for (let i = 0; i < lead; i++) out.push({ n: null, key: `b${month}-${i}`, today: false, color: '', alpha: 0 });
+		const out: Array<{
+			n: number | null;
+			key: string;
+			today: boolean;
+			color: string;
+			alpha: number;
+		}> = [];
+		for (let i = 0; i < lead; i++)
+			out.push({ n: null, key: `b${month}-${i}`, today: false, color: '', alpha: 0 });
 		for (let day = 1; day <= last; day++) {
 			const key = dayKey(new Date(year, month, day));
 			const term = termFor(key);
-			const load = dueByDay.get(key)?.length ?? 0;
+			const load = dueByDay[key]?.length ?? 0;
 			const color = term?.color ?? '#5b5b8a';
 			let alpha = 0;
 			if (term) alpha = 0.09; // term band
@@ -71,7 +76,9 @@
 						<button
 							class="d"
 							class:today={cell.today}
-							style="background:{cell.alpha ? `color-mix(in srgb, ${cell.color} ${cell.alpha * 100}%, transparent)` : 'transparent'}"
+							style="background:{cell.alpha
+								? `color-mix(in srgb, ${cell.color} ${cell.alpha * 100}%, transparent)`
+								: 'transparent'}"
 							onclick={() => onselectday(new Date(year, m, cell.n!))}
 							title={cell.key}
 						>

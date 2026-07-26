@@ -22,7 +22,11 @@
 	} as const;
 </script>
 
-<div class="assignment" class:done={assignment.status === 'done'} style="--c:{course?.color ?? 'var(--faint)'}">
+<div
+	class="assignment"
+	class:done={assignment.status === 'done'}
+	style="--c:{course?.color ?? 'var(--faint)'}"
+>
 	<button
 		class="check"
 		onclick={() => planner.cycleStatus(assignment.id)}
@@ -34,7 +38,8 @@
 
 	<div class="body">
 		{#if onedit}
-			<button class="title editable" onclick={() => onedit?.(assignment)}>{assignment.title}</button>
+			<button class="title editable" onclick={() => onedit?.(assignment)}>{assignment.title}</button
+			>
 		{:else}
 			<div class="title">{assignment.title}</div>
 		{/if}

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { planner } from '$lib/planner.svelte';
-	import { meetingSummary } from '$lib/schedule';
-	import { MONTHS_SHORT, parseDay } from '$lib/date';
+	import { courseRange, meetingSummary, rangeLabel, sessionLabel } from '$lib/schedule';
+	import { dayKey, formatDayKey } from '$lib/date';
 	import type { Course, Term } from '$lib/types';
 	import CourseDialog from '$lib/components/CourseDialog.svelte';
 	import TermDialog from '$lib/components/TermDialog.svelte';
@@ -12,11 +12,28 @@
 	let termOpen = $state(false);
 	let editingTerm = $state<Term | null>(null);
 
-	const term = $derived(planner.activeTerm);
+	const activeTerm = $derived(planner.activeTerm);
 
-	function fmtDate(iso: string): string {
-		const d = parseDay(iso);
-		return `${MONTHS_SHORT[d.getMonth()]} ${d.getDate()}`;
+	// One section per term, in chronological order, plus a trailing section for
+	// courses that aren't assigned to any term.
+	const sections = $derived.by(() => {
+		const out: Array<{ term: Term | null; courses: Course[] }> = planner.sortedTerms.map(
+			(term) => ({ term, courses: planner.coursesInTerm(term.id) })
+		);
+		const orphans = planner.coursesInTerm(null);
+		if (orphans.length) out.push({ term: null, courses: orphans });
+		return out;
+	});
+
+	/**
+	 * The active term is what new courses default into, so call it out rather
+	 * than leaving two identical "Upcoming" chips with only a tint between them.
+	 */
+	function termStatus(term: Term): string {
+		const today = dayKey(new Date());
+		if (today >= term.start_date && today <= term.end_date) return 'Current';
+		if (term.id === activeTerm?.id) return 'Next up';
+		return today > term.end_date ? 'Past' : 'Upcoming';
 	}
 
 	function newCourse() {
@@ -27,8 +44,12 @@
 		editingCourse = c;
 		courseOpen = true;
 	}
-	function editTerm() {
-		editingTerm = term ?? null;
+	function newTerm() {
+		editingTerm = null;
+		termOpen = true;
+	}
+	function editTerm(t: Term) {
+		editingTerm = t;
 		termOpen = true;
 	}
 </script>
@@ -43,56 +64,89 @@
 	</button>
 </header>
 
-<button class="term-card" onclick={editTerm}>
-	{#if term}
-		<div class="term-info">
-			<span class="eyebrow">Current term</span>
-			<span class="term-name">{term.name}</span>
-			<span class="term-dates num">{fmtDate(term.start_date)} — {fmtDate(term.end_date)}</span>
-		</div>
-	{:else}
+{#if !planner.terms.length}
+	<button class="term-card" onclick={newTerm}>
 		<div class="term-info">
 			<span class="eyebrow">Term</span>
-			<span class="term-name">Set up your term</span>
+			<span class="term-name">Set up your first term</span>
+			<span class="term-dates">Terms bound when your classes meet.</span>
 		</div>
-	{/if}
-	<span class="edit-hint"><Icon name="edit" size={18} /></span>
-</button>
+		<span class="edit-hint"><Icon name="add" size={20} /></span>
+	</button>
+{/if}
 
-{#if planner.courses.length}
-	<div class="courses">
-		{#each planner.courses as c (c.id)}
-			{@const summary = meetingSummary(planner.meetingsFor(c.id))}
-			<button class="course" style="--c:{c.color}" onclick={() => editCourse(c)}>
-				<div class="spine"></div>
-				<div class="course-body">
-					<div class="course-top">
-						{#if c.code}<span class="code num">{c.code}</span>{/if}
-						<span class="edit-hint"><Icon name="edit" size={16} /></span>
-					</div>
-					<h3>{c.title}</h3>
-					<div class="details">
-						{#if c.instructor}
-							<span class="detail"><Icon name="person" size={15} />{c.instructor}</span>
-						{/if}
-						{#if c.location}
-							<span class="detail"><Icon name="location_on" size={15} />{c.location}</span>
-						{/if}
-					</div>
-					{#if summary.length}
-						<div class="meetings">
-							{#each summary as s (s)}
-								<span class="meeting num">{s}</span>
-							{/each}
-						</div>
-					{:else}
-						<span class="no-meet faint">No meeting times yet</span>
-					{/if}
+{#each sections as section (section.term?.id ?? 'unassigned')}
+	<section class="term-section">
+		{#if section.term}
+			{@const t = section.term}
+			<div class="section-head" style="--c:{t.color}">
+				<button class="term-title" onclick={() => editTerm(t)}>
+					<span class="term-swatch"></span>
+					<span class="term-name">{t.name}</span>
+					<span class="status" class:now={t.id === activeTerm?.id}>{termStatus(t)}</span>
+					<span class="term-dates num">
+						{formatDayKey(t.start_date)} – {formatDayKey(t.end_date)}
+					</span>
+					<span class="edit-hint"><Icon name="edit" size={16} /></span>
+				</button>
+			</div>
+		{:else}
+			<div class="section-head">
+				<div class="term-title as-text">
+					<span class="term-name">Not in a term</span>
+					<span class="term-dates">These classes repeat weekly with no end date.</span>
 				</div>
-			</button>
-		{/each}
-	</div>
-{:else}
+			</div>
+		{/if}
+
+		{#if section.courses.length}
+			<div class="courses">
+				{#each section.courses as c (c.id)}
+					{@const summary = meetingSummary(planner.meetingsFor(c.id))}
+					{@const badge = sessionLabel(c)}
+					{@const span = rangeLabel(courseRange(c, section.term ?? undefined))}
+					<button class="course" style="--c:{c.color}" onclick={() => editCourse(c)}>
+						<div class="spine"></div>
+						<div class="course-body">
+							<div class="course-top">
+								{#if c.code}<span class="code num">{c.code}</span>{/if}
+								<span class="edit-hint"><Icon name="edit" size={16} /></span>
+							</div>
+							<h3>{c.title}</h3>
+							<div class="details">
+								{#if c.instructor}
+									<span class="detail"><Icon name="person" size={15} />{c.instructor}</span>
+								{/if}
+								{#if c.location}
+									<span class="detail"><Icon name="location_on" size={15} />{c.location}</span>
+								{/if}
+							</div>
+							{#if summary.length}
+								<div class="meetings">
+									{#each summary as s (s)}
+										<span class="meeting num">{s}</span>
+									{/each}
+								</div>
+							{:else}
+								<span class="no-meet faint">No meeting times yet</span>
+							{/if}
+							{#if badge}
+								<div class="session">
+									<span class="session-badge">{badge}</span>
+									{#if span}<span class="session-span num">{span}</span>{/if}
+								</div>
+							{/if}
+						</div>
+					</button>
+				{/each}
+			</div>
+		{:else}
+			<p class="section-empty faint">No courses in this term yet.</p>
+		{/if}
+	</section>
+{/each}
+
+{#if !planner.courses.length}
 	<div class="card empty">
 		<Icon name="school" size={30} />
 		<p>No courses yet.</p>
@@ -102,6 +156,10 @@
 		</button>
 	</div>
 {/if}
+
+<button class="btn add-term" onclick={newTerm}>
+	<Icon name="add" size={18} /> Add term
+</button>
 
 <CourseDialog bind:open={courseOpen} editing={editingCourse} />
 <TermDialog bind:open={termOpen} editing={editingTerm} />
@@ -155,6 +213,92 @@
 	}
 	.edit-hint {
 		color: var(--faint);
+	}
+
+	.term-section {
+		margin-bottom: 2rem;
+	}
+	.section-head {
+		margin-bottom: 0.85rem;
+	}
+	.term-title {
+		display: flex;
+		align-items: baseline;
+		gap: 0.6rem;
+		flex-wrap: wrap;
+		width: 100%;
+		padding: 0 0 0.55rem;
+		border: 0;
+		border-bottom: 1px solid var(--line);
+		background: transparent;
+		text-align: left;
+		cursor: pointer;
+	}
+	.term-title.as-text {
+		cursor: default;
+	}
+	.term-title:not(.as-text):hover .term-name {
+		color: var(--iris);
+	}
+	.term-title .term-name {
+		font-size: 1.15rem;
+	}
+	.term-swatch {
+		width: 9px;
+		height: 9px;
+		border-radius: var(--r-pill);
+		background: var(--c);
+		align-self: center;
+		flex-shrink: 0;
+	}
+	.status {
+		font-family: var(--font-mono);
+		font-size: var(--t-xs);
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--faint);
+		padding: 0.15em 0.55em;
+		border-radius: var(--r-pill);
+		background: var(--surface-sunk);
+	}
+	.status.now {
+		background: var(--iris-tint);
+		color: var(--iris-strong);
+	}
+	.term-title .term-dates {
+		margin-left: auto;
+		font-size: var(--t-xs);
+	}
+	.section-empty {
+		font-size: var(--t-sm);
+		padding: 0.75rem 0;
+	}
+
+	.session {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		flex-wrap: wrap;
+		margin-top: 0.5rem;
+	}
+	.session-badge {
+		font-family: var(--font-mono);
+		font-size: var(--t-xs);
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		padding: 0.2em 0.55em;
+		border-radius: var(--r-pill);
+		border: 1px dashed color-mix(in srgb, var(--c) 55%, transparent);
+		color: var(--muted);
+	}
+	.session-span {
+		font-size: var(--t-xs);
+		color: var(--faint);
+	}
+
+	.add-term {
+		margin-top: 0.5rem;
+		color: var(--muted);
 	}
 
 	.courses {

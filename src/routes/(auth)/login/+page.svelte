@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { goto, invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { quoteForDay } from '$lib/quotes';
 	import Icon from '$lib/components/Icon.svelte';
 
@@ -46,7 +47,7 @@
 			return;
 		}
 		await invalidateAll();
-		await goto('/');
+		await goto(resolve('/'));
 	}
 
 	function restart() {
@@ -88,8 +89,10 @@
 				<button class="btn btn-primary submit" type="submit" disabled={loading}>
 					{#if loading}Sending…{:else}Send me a code <Icon name="arrow_forward" size={18} />{/if}
 				</button>
-				<p class="hint">We'll email you a 6-digit code. No password needed — if it's your
-					first time, we'll set you up automatically.</p>
+				<p class="hint">
+					We'll email you a 6-digit code. No password needed — if it's your first time, we'll set
+					you up automatically.
+				</p>
 			</form>
 		{:else}
 			<form onsubmit={verify}>
@@ -130,8 +133,7 @@
 		place-items: center;
 		padding: 2rem 1.25rem;
 		background:
-			radial-gradient(90% 60% at 50% -10%, var(--iris-tint) 0%, transparent 60%),
-			var(--paper);
+			radial-gradient(90% 60% at 50% -10%, var(--iris-tint) 0%, transparent 60%), var(--paper);
 	}
 	.panel {
 		width: min(100%, 400px);

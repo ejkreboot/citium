@@ -5,14 +5,8 @@
 // generate UUIDs client-side so local and remote ids match.
 
 import type { SupabaseClient, User } from '@supabase/supabase-js';
-import type {
-	Assignment,
-	AssignmentStatus,
-	ClassMeeting,
-	Course,
-	Note,
-	Term
-} from './types';
+import { dayKey } from './date';
+import type { Assignment, AssignmentStatus, ClassMeeting, Course, Note, Term } from './types';
 
 function uid(): string {
 	return typeof crypto !== 'undefined' && crypto.randomUUID
@@ -66,9 +60,35 @@ class Planner {
 		return this.courses.find((c) => c.id === id);
 	}
 
+	termById(id: string | null): Term | undefined {
+		if (!id) return undefined;
+		return this.terms.find((t) => t.id === id);
+	}
+
+	/** The term a course belongs to, if any. */
+	termFor(course: Course): Term | undefined {
+		return this.termById(course.term_id);
+	}
+
+	/** Courses in a term, or the unassigned ones when `termId` is null. */
+	coursesInTerm(termId: string | null): Course[] {
+		return this.courses.filter((c) => c.term_id === termId);
+	}
+
+	/** Terms in chronological order — the order every term UI renders in. */
+	get sortedTerms(): Term[] {
+		return [...this.terms].sort((a, b) => a.start_date.localeCompare(b.start_date));
+	}
+
 	get activeTerm(): Term | undefined {
-		const today = new Date().toISOString().slice(0, 10);
-		return this.terms.find((t) => t.start_date <= today && today <= t.end_date) ?? this.terms[0];
+		const today = dayKey(new Date());
+		const sorted = this.sortedTerms;
+		return (
+			sorted.find((t) => t.start_date <= today && today <= t.end_date) ??
+			// Otherwise the next term to begin, else the most recent one.
+			sorted.find((t) => t.start_date > today) ??
+			sorted[sorted.length - 1]
+		);
 	}
 
 	// --- Assignments ---
@@ -166,6 +186,15 @@ class Planner {
 	updateTerm(id: string, patch: Partial<Term>) {
 		this.terms = this.terms.map((t) => (t.id === id ? { ...t, ...patch } : t));
 		this.run(this.client?.from('terms').update(patch).eq('id', id), 'updateTerm');
+	}
+
+	removeTerm(id: string) {
+		this.terms = this.terms.filter((t) => t.id !== id);
+		// Courses outlive their term; the FK is `on delete set null`, so mirror
+		// that locally. A course with no term falls back to a custom range or
+		// recurs unbounded.
+		this.courses = this.courses.map((c) => (c.term_id === id ? { ...c, term_id: null } : c));
+		this.run(this.client?.from('terms').delete().eq('id', id), 'removeTerm');
 	}
 
 	addCourse(input: Omit<Course, 'id' | 'user_id'>): Course {

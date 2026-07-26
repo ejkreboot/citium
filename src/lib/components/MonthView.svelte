@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { planner } from '$lib/planner.svelte';
 	import { occurrencesOn } from '$lib/schedule';
-	import { calendarGrid, orderedWeekdays, dayKey, WEEKDAYS, isToday, parseDay } from '$lib/date';
+	import { calendarGrid, orderedWeekdays, dayKey, WEEKDAYS, isToday } from '$lib/date';
 	import type { Assignment } from '$lib/types';
 
 	let {
@@ -15,12 +15,12 @@
 	const headers = $derived(orderedWeekdays(weekStart).map((d) => WEEKDAYS[d]));
 
 	const dueByDay = $derived.by(() => {
-		const map = new Map<string, Assignment[]>();
+		const byDay: Record<string, Assignment[]> = {};
 		for (const a of planner.assignments) {
 			const k = dayKey(new Date(a.due_at));
-			(map.get(k) ?? map.set(k, []).get(k)!).push(a);
+			(byDay[k] ??= []).push(a);
 		}
-		return map;
+		return byDay;
 	});
 
 	function classColorsOn(d: Date): string[] {
@@ -44,7 +44,7 @@
 			{@const key = dayKey(d)}
 			{@const inMonth = d.getMonth() === month}
 			{@const dots = classColorsOn(d)}
-			{@const due = dueByDay.get(key) ?? []}
+			{@const due = dueByDay[key] ?? []}
 			<button
 				class="cell"
 				class:out={!inMonth}
@@ -64,7 +64,11 @@
 				<div class="events">
 					{#each due.slice(0, 3) as a (a.id)}
 						{@const course = planner.courseById(a.course_id)}
-						<span class="ev" class:done={a.status === 'done'} style="--c:{course?.color ?? 'var(--faint)'}">
+						<span
+							class="ev"
+							class:done={a.status === 'done'}
+							style="--c:{course?.color ?? 'var(--faint)'}"
+						>
 							<span class="ev-dot"></span>
 							<span class="ev-title">{a.title}</span>
 						</span>

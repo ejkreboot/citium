@@ -19,6 +19,13 @@ export interface Term {
 	color: string; // hex
 }
 
+/**
+ * Which slice of its term a course runs for. `full` spans the whole term,
+ * `first_half`/`second_half` split it at the midpoint, and `custom` uses the
+ * course's own start_date/end_date (clamped to the term).
+ */
+export type CourseSession = 'full' | 'first_half' | 'second_half' | 'custom';
+
 export interface Course {
 	id: UUID;
 	user_id: UUID;
@@ -28,6 +35,15 @@ export interface Course {
 	instructor: string | null;
 	location: string | null;
 	color: string; // hex — used across schedule + homework
+	session: CourseSession;
+	start_date: string | null; // YYYY-MM-DD, only set when session === 'custom'
+	end_date: string | null;
+}
+
+/** An inclusive span of day keys (YYYY-MM-DD). */
+export interface DateRange {
+	start: string;
+	end: string;
 }
 
 export interface ClassMeeting {
