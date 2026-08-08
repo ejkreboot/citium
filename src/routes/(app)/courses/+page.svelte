@@ -1,11 +1,13 @@
 <script lang="ts">
-	import { planner } from '$lib/planner.svelte';
+	import { getPlanner } from '$lib/planner.svelte';
 	import { courseRange, meetingSummary, rangeLabel, sessionLabel } from '$lib/schedule';
 	import { dayKey, formatDayKey } from '$lib/date';
 	import type { Course, Term } from '$lib/types';
 	import CourseDialog from '$lib/components/CourseDialog.svelte';
 	import TermDialog from '$lib/components/TermDialog.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+
+	const planner = getPlanner();
 
 	let courseOpen = $state(false);
 	let editingCourse = $state<Course | null>(null);

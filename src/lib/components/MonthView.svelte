@@ -1,8 +1,10 @@
 <script lang="ts">
-	import { planner } from '$lib/planner.svelte';
-	import { occurrencesOn } from '$lib/schedule';
+	import { getPlanner } from '$lib/planner.svelte';
+	import { expandOccurrences } from '$lib/schedule';
 	import { calendarGrid, orderedWeekdays, dayKey, WEEKDAYS, isToday } from '$lib/date';
 	import type { Assignment } from '$lib/types';
+
+	const planner = getPlanner();
 
 	let {
 		year,
@@ -23,14 +25,29 @@
 		return byDay;
 	});
 
-	function classColorsOn(d: Date): string[] {
-		const occ = occurrencesOn(d, {
+	/**
+	 * Class colours for every cell in one pass.
+	 *
+	 * Previously each cell called `occurrencesOn`, and every one of those rebuilt
+	 * the course/term/range lookup maps from scratch — 42x the setup for a single
+	 * grid. Expanding the whole visible span once builds them once.
+	 */
+	const colorsByDay = $derived.by(() => {
+		const occurrences = expandOccurrences(cells[0], cells[cells.length - 1], {
 			courses: planner.courses,
 			meetings: planner.meetings,
 			terms: planner.terms
 		});
-		return [...new Set(occ.map((o) => o.course.color))];
-	}
+
+		// A day has at most a handful of distinct colours, so a linear dedupe beats
+		// allocating a Set per day.
+		const out: Record<string, string[]> = {};
+		for (const o of occurrences) {
+			const colors = (out[o.date] ??= []);
+			if (!colors.includes(o.course.color)) colors.push(o.course.color);
+		}
+		return out;
+	});
 </script>
 
 <div class="month card">
@@ -43,7 +60,7 @@
 		{#each cells as d (dayKey(d))}
 			{@const key = dayKey(d)}
 			{@const inMonth = d.getMonth() === month}
-			{@const dots = classColorsOn(d)}
+			{@const dots = colorsByDay[key] ?? []}
 			{@const due = dueByDay[key] ?? []}
 			<button
 				class="cell"

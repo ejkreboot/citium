@@ -1,10 +1,12 @@
 <script lang="ts">
-	import { planner } from '$lib/planner.svelte';
+	import { getPlanner } from '$lib/planner.svelte';
 	import { COURSE_PALETTE } from '$lib/mock';
 	import { WEEKDAYS } from '$lib/date';
 	import { courseRange, halfTermBoundary, rangeLabel } from '$lib/schedule';
 	import type { Course, CourseSession } from '$lib/types';
 	import Icon from './Icon.svelte';
+
+	const planner = getPlanner();
 
 	let { open = $bindable(false), editing = null }: { open?: boolean; editing?: Course | null } =
 		$props();

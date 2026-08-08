@@ -5,22 +5,34 @@ import type { LayoutLoad } from './$types';
 export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 	depends('supabase:auth');
 
-	const supabase = isBrowser()
-		? createBrowserClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
-				global: { fetch }
-			})
-		: createServerClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
+	if (!isBrowser()) {
+		// During SSR the parent server load has already validated this session with
+		// getUser() (via the per-request memo in hooks.server.ts), so reuse its
+		// result rather than making the same round-trip a second time.
+		return {
+			supabase: createServerClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
 				global: { fetch },
 				cookies: { getAll: () => data.cookies ?? [] }
-			});
+			}),
+			session: data.session,
+			user: data.user
+		};
+	}
 
-	const {
-		data: { session }
-	} = await supabase.auth.getSession();
+	// In the browser the cookie is untrusted input, so the session still has to be
+	// checked against the auth server.
+	const supabase = createBrowserClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
+		global: { fetch }
+	});
 
-	const {
-		data: { user }
-	} = await supabase.auth.getUser();
+	const [
+		{
+			data: { session }
+		},
+		{
+			data: { user }
+		}
+	] = await Promise.all([supabase.auth.getSession(), supabase.auth.getUser()]);
 
 	return { supabase, session, user };
 };

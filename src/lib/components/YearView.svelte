@@ -1,7 +1,9 @@
 <script lang="ts">
-	import { planner } from '$lib/planner.svelte';
-	import { dayKey, isToday, MONTHS_SHORT } from '$lib/date';
-	import type { Assignment, Term } from '$lib/types';
+	import { getPlanner } from '$lib/planner.svelte';
+	import { dayKey, todayKey, MONTHS_SHORT } from '$lib/date';
+	import type { Assignment } from '$lib/types';
+
+	const planner = getPlanner();
 
 	let {
 		year,
@@ -22,54 +24,72 @@
 		return byDay;
 	});
 
-	function termFor(key: string): Term | undefined {
-		return planner.terms.find((t) => t.start_date <= key && key <= t.end_date);
+	interface Cell {
+		n: number | null;
+		key: string;
+		today: boolean;
+		color: string;
+		alpha: number;
 	}
 
-	// One tinted cell descriptor per real day of a month.
-	function daysOf(month: number) {
-		const last = new Date(year, month + 1, 0).getDate();
-		const lead = new Date(year, month, 1).getDay(); // 0=Sun
-		const out: Array<{
-			n: number | null;
-			key: string;
-			today: boolean;
-			color: string;
-			alpha: number;
-		}> = [];
-		for (let i = 0; i < lead; i++)
-			out.push({ n: null, key: `b${month}-${i}`, today: false, color: '', alpha: 0 });
-		for (let day = 1; day <= last; day++) {
-			const key = dayKey(new Date(year, month, day));
-			const term = termFor(key);
-			const load = dueByDay[key]?.length ?? 0;
-			const color = term?.color ?? '#5b5b8a';
-			let alpha = 0;
-			if (term) alpha = 0.09; // term band
-			if (load === 1) alpha = 0.28;
-			else if (load === 2) alpha = 0.44;
-			else if (load >= 3) alpha = 0.62;
-			out.push({ n: day, key, today: isToday(key), color, alpha });
-		}
-		return out;
-	}
+	/**
+	 * All twelve grids, built once per (year, terms, assignments) change rather
+	 * than on every render — this walks ~365 days, and the template used to call
+	 * it from inside the month loop.
+	 *
+	 * Terms are pre-sorted into a small array scanned once per day instead of a
+	 * `.find` over the unsorted list per day.
+	 */
+	const months = $derived.by(() => {
+		const today = todayKey();
+		const terms = planner.terms;
+
+		return MONTHS_SHORT.map((name, month) => {
+			const last = new Date(year, month + 1, 0).getDate();
+			const lead = new Date(year, month, 1).getDay(); // 0=Sun
+			const cells: Cell[] = [];
+
+			for (let i = 0; i < lead; i++)
+				cells.push({ n: null, key: `b${month}-${i}`, today: false, color: '', alpha: 0 });
+
+			for (let day = 1; day <= last; day++) {
+				const key = dayKey(new Date(year, month, day));
+				const term = terms.find((t) => t.start_date <= key && key <= t.end_date);
+				const load = dueByDay[key]?.length ?? 0;
+				const color = term?.color ?? '#5b5b8a';
+				let alpha = 0;
+				if (term) alpha = 0.09; // term band
+				if (load === 1) alpha = 0.28;
+				else if (load === 2) alpha = 0.44;
+				else if (load >= 3) alpha = 0.62;
+				cells.push({ n: day, key, today: key === today, color, alpha });
+			}
+
+			return { name, month, cells };
+		});
+	});
 
 	const dow = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-	const hasToday = $derived(new Date().getFullYear() === year);
+
+	// Which mini-calendar gets the "now" dot, or -1 when viewing another year.
+	const todayMonth = $derived.by(() => {
+		const [y, m] = todayKey().split('-').map(Number);
+		return y === year ? m - 1 : -1;
+	});
 </script>
 
 <div class="year">
-	{#each MONTHS_SHORT as name, m (name)}
+	{#each months as { name, month: m, cells } (name)}
 		<div class="mini card">
 			<button class="mini-head" onclick={() => onselectmonth(m)}>
 				<span class="mname">{name}</span>
-				{#if hasToday && new Date().getMonth() === m}<span class="now-dot"></span>{/if}
+				{#if todayMonth === m}<span class="now-dot"></span>{/if}
 			</button>
 			<div class="dow">
 				{#each dow as d, i (i)}<span>{d}</span>{/each}
 			</div>
 			<div class="days">
-				{#each daysOf(m) as cell (cell.key)}
+				{#each cells as cell (cell.key)}
 					{#if cell.n === null}
 						<span class="pad"></span>
 					{:else}

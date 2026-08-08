@@ -1,9 +1,11 @@
 <script lang="ts">
-	import { planner } from '$lib/planner.svelte';
+	import { getPlanner } from '$lib/planner.svelte';
 	import { occurrencesOn } from '$lib/schedule';
 	import { dayKey, isToday } from '$lib/date';
 	import ClassItem from './ClassItem.svelte';
 	import AssignmentItem from './AssignmentItem.svelte';
+
+	const planner = getPlanner();
 
 	let { date }: { date: Date } = $props();
 

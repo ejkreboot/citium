@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { planner } from '$lib/planner.svelte';
+	import { getPlanner } from '$lib/planner.svelte';
 	import {
 		addDays,
 		addMonths,
@@ -17,6 +17,8 @@
 	import MonthView from '$lib/components/MonthView.svelte';
 	import YearView from '$lib/components/YearView.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+
+	const planner = getPlanner();
 
 	type ViewMode = 'year' | 'month' | 'week' | 'day';
 

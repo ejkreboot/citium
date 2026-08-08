@@ -1,6 +1,8 @@
 <script lang="ts">
-	import { planner } from '$lib/planner.svelte';
+	import { getPlanner } from '$lib/planner.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+
+	const planner = getPlanner();
 
 	// Pinned first, otherwise most-recently-updated first.
 	const ordered = $derived(

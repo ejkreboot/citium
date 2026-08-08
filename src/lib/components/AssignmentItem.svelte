@@ -1,8 +1,10 @@
 <script lang="ts">
 	import type { Assignment } from '$lib/types';
-	import { planner } from '$lib/planner.svelte';
+	import { getPlanner } from '$lib/planner.svelte';
 	import { relativeDue } from '$lib/date';
 	import Icon from './Icon.svelte';
+
+	const planner = getPlanner();
 
 	let {
 		assignment,

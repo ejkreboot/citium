@@ -1,18 +1,26 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
+	import { untrack, onMount, onDestroy } from 'svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { asset, resolve } from '$app/paths';
 	import Icon from '$lib/components/Icon.svelte';
-	import { planner } from '$lib/planner.svelte';
+	import { createPlanner } from '$lib/planner.svelte';
 
 	let { data, children } = $props();
 
+	// One store per render, published to the subtree. Never a module singleton:
+	// on the server that would outlive the request and bleed into the next one.
+	const planner = createPlanner();
+
 	async function signOut() {
+		// Land any still-debounced note edit while the client is still authorized.
+		await planner.flushNotes();
 		await data.supabase?.auth.signOut();
-		planner.seeded = false;
 		await goto(resolve('/login'));
 	}
+
+	// Cancel debounced writes when the subtree goes away (sign-out, navigation).
+	onDestroy(() => planner.dispose());
 
 	// Seed the reactive store from Supabase and connect it for persistence.
 	// The (app) server load guarantees a user (redirects otherwise).
@@ -60,10 +68,13 @@
 	// --- Theme ---
 	let theme = $state<'light' | 'dark'>('light');
 
-	$effect(() => {
-		const saved = localStorage.getItem('citium-theme');
+	// Init work, so it belongs in onMount rather than an $effect: as an effect it
+	// both wrote `theme` and (via apply) read it, so every toggle re-ran the whole
+	// localStorage/matchMedia probe to arrive back at the value just set.
+	onMount(() => {
+		const saved = localStorage.getItem('citium-theme') as 'light' | 'dark' | null;
 		const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-		theme = (saved as 'light' | 'dark') ?? (prefersDark ? 'dark' : 'light');
+		theme = saved ?? (prefersDark ? 'dark' : 'light');
 		apply();
 	});
 

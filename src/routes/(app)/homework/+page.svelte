@@ -1,10 +1,12 @@
 <script lang="ts">
-	import { planner } from '$lib/planner.svelte';
+	import { getPlanner } from '$lib/planner.svelte';
 	import { dayKey } from '$lib/date';
 	import type { Assignment } from '$lib/types';
 	import AssignmentItem from '$lib/components/AssignmentItem.svelte';
 	import AssignmentDialog from '$lib/components/AssignmentDialog.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+
+	const planner = getPlanner();
 
 	let dialogOpen = $state(false);
 	let editing = $state<Assignment | null>(null);

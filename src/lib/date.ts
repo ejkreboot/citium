@@ -85,8 +85,25 @@ export function weekDays(d: Date, weekStart = 0): Date[] {
 	return Array.from({ length: 7 }, (_, i) => addDays(start, i));
 }
 
+/**
+ * Today's day key. Cached because the calendars call this once per rendered
+ * cell — hundreds of times per render in the year view — and each miss
+ * allocated a Date.
+ *
+ * A module-level cache is safe here in a way it would not be for user data:
+ * today's date is the same for every request, and the one-minute window keeps
+ * a long-lived tab correct across midnight.
+ */
+let todayCache = { at: 0, key: '' };
+
+export function todayKey(): string {
+	const now = Date.now();
+	if (now - todayCache.at > 60_000) todayCache = { at: now, key: dayKey(new Date(now)) };
+	return todayCache.key;
+}
+
 export function isToday(key: string): boolean {
-	return key === dayKey(new Date());
+	return key === todayKey();
 }
 
 /** Days in a month as Date objects. */

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { planner } from '$lib/planner.svelte';
+	import { getPlanner } from '$lib/planner.svelte';
 	import { occurrencesOn } from '$lib/schedule';
 	import { quoteForDay } from '$lib/quotes';
 	import { WEEKDAYS_LONG, MONTHS, dayKey } from '$lib/date';
@@ -7,6 +7,8 @@
 	import AssignmentItem from '$lib/components/AssignmentItem.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import { resolve } from '$app/paths';
+
+	const planner = getPlanner();
 
 	const now = new Date();
 	const quote = quoteForDay(now);

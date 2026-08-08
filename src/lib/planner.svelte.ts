@@ -3,7 +3,14 @@
 // Mutations update local state optimistically and, when connected to Supabase,
 // persist in the background. RLS scopes every row to the signed-in user, and we
 // generate UUIDs client-side so local and remote ids match.
+//
+// The store is REQUEST-SCOPED, not a module singleton: on the server a module
+// lives for the whole lifetime of the process (a warm serverless instance), so
+// a shared instance would retain one user's rows and render them into the next
+// user's SSR pass. `createPlanner()` in the (app) layout makes one per render;
+// everything else reaches it with `getPlanner()`.
 
+import { getContext, setContext } from 'svelte';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { dayKey } from './date';
 import type { Assignment, AssignmentStatus, ClassMeeting, Course, Note, Term } from './types';
@@ -22,6 +29,17 @@ export interface SeedData {
 	notes: Note[];
 }
 
+/** A note edit waiting out its debounce window. */
+interface PendingNote {
+	timer: ReturnType<typeof setTimeout>;
+	content: string;
+	updated_at: string;
+}
+
+// Not exported as a value: the store is only ever obtained through
+// createPlanner()/getPlanner(), and exporting the class makes
+// `svelte/prefer-svelte-reactivity` read its deliberately non-reactive
+// internals (the debounce map, transient Dates) as public reactive state.
 class Planner {
 	terms = $state<Term[]>([]);
 	courses = $state<Course[]>([]);
@@ -32,7 +50,7 @@ class Planner {
 	seeded = $state(false);
 
 	private client: SupabaseClient | null = null;
-	private noteTimers = new Map<string, ReturnType<typeof setTimeout>>();
+	private notePending = new Map<string, PendingNote>();
 
 	connect(client: SupabaseClient | null, user: User | null) {
 		this.client = client;
@@ -149,16 +167,46 @@ class Planner {
 	updateNote(id: string, content: string) {
 		const updated_at = new Date().toISOString();
 		this.notes = this.notes.map((n) => (n.id === id ? { ...n, content, updated_at } : n));
-		// Debounce DB writes while typing.
-		clearTimeout(this.noteTimers.get(id));
-		this.noteTimers.set(
-			id,
-			setTimeout(() => {
-				this.run(
-					this.client?.from('notes').update({ content, updated_at }).eq('id', id),
-					'updateNote'
+
+		// Debounce DB writes while typing. The pending entry is dropped as soon as
+		// it fires (or is superseded) so the map tracks only live timers.
+		this.cancelNoteWrite(id);
+		const timer = setTimeout(() => {
+			this.notePending.delete(id);
+			this.run(
+				this.client?.from('notes').update({ content, updated_at }).eq('id', id),
+				'updateNote'
+			);
+		}, 600);
+		this.notePending.set(id, { timer, content, updated_at });
+	}
+
+	/** Drop a queued note write without running it. */
+	private cancelNoteWrite(id: string) {
+		const pending = this.notePending.get(id);
+		if (!pending) return;
+		clearTimeout(pending.timer);
+		this.notePending.delete(id);
+	}
+
+	/**
+	 * Run every queued note write now. Call before tearing down the session so a
+	 * still-debounced keystroke isn't lost when the client is deauthorized.
+	 */
+	async flushNotes() {
+		const pending = [...this.notePending.entries()];
+		this.notePending.clear();
+		await Promise.all(
+			pending.map(([id, p]) => {
+				clearTimeout(p.timer);
+				return this.run(
+					this.client
+						?.from('notes')
+						.update({ content: p.content, updated_at: p.updated_at })
+						.eq('id', id),
+					'flushNotes'
 				);
-			}, 600)
+			})
 		);
 	}
 
@@ -171,6 +219,8 @@ class Planner {
 	}
 
 	removeNote(id: string) {
+		// Drop any debounced edit first: it would fire after the row is gone.
+		this.cancelNoteWrite(id);
 		this.notes = this.notes.filter((n) => n.id !== id);
 		this.run(this.client?.from('notes').delete().eq('id', id), 'removeNote');
 	}
@@ -243,6 +293,25 @@ class Planner {
 	meetingsFor(courseId: string): ClassMeeting[] {
 		return this.meetings.filter((m) => m.course_id === courseId);
 	}
+
+	/** Cancel queued work and release the Supabase client. Call on teardown. */
+	dispose() {
+		for (const pending of this.notePending.values()) clearTimeout(pending.timer);
+		this.notePending.clear();
+		this.client = null;
+	}
 }
 
-export const planner = new Planner();
+const PLANNER_KEY = Symbol('planner');
+
+/** Create the store for this render and publish it to descendants. */
+export function createPlanner(): Planner {
+	return setContext(PLANNER_KEY, new Planner());
+}
+
+/** The store for the current (app) subtree. Must be called during init. */
+export function getPlanner(): Planner {
+	const planner = getContext<Planner | undefined>(PLANNER_KEY);
+	if (!planner) throw new Error('getPlanner() called outside a createPlanner() subtree');
+	return planner;
+}

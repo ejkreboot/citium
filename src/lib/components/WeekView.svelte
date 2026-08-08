@@ -1,9 +1,11 @@
 <script lang="ts">
-	import { planner } from '$lib/planner.svelte';
+	import { getPlanner } from '$lib/planner.svelte';
 	import { expandOccurrences } from '$lib/schedule';
 	import { dayKey, formatTime, isToday, minutesOf, weekDays, WEEKDAYS } from '$lib/date';
 	import type { Assignment, ClassOccurrence } from '$lib/types';
 	import Icon from './Icon.svelte';
+
+	const planner = getPlanner();
 
 	let {
 		date,
