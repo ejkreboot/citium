@@ -41,6 +41,7 @@
 					courses: data.courses,
 					meetings: data.meetings,
 					assignments: data.assignments,
+					studySessions: data.studySessions,
 					notes: data.notes
 				},
 				data.user.id

@@ -56,6 +56,7 @@ export interface ClassMeeting {
 }
 
 export type AssignmentStatus = 'todo' | 'doing' | 'done';
+export type AssignmentKind = 'homework' | 'test';
 
 export interface Assignment {
 	id: UUID;
@@ -66,6 +67,18 @@ export interface Assignment {
 	due_at: string; // ISO timestamptz
 	status: AssignmentStatus;
 	priority: number; // 0 normal, 1 high
+	kind: AssignmentKind;
+}
+
+/** A one-off block of study time shown alongside recurring classes. */
+export interface StudySession {
+	id: UUID;
+	user_id: UUID;
+	course_id: UUID | null;
+	title: string;
+	notes: string | null;
+	starts_at: string; // ISO timestamptz
+	ends_at: string;
 }
 
 export interface Note {

@@ -2,8 +2,6 @@
 	import { getPlanner } from '$lib/planner.svelte';
 	import { expandOccurrences } from '$lib/schedule';
 	import { calendarGrid, orderedWeekdays, dayKey, WEEKDAYS, isToday } from '$lib/date';
-	import type { Assignment } from '$lib/types';
-
 	const planner = getPlanner();
 
 	let {
@@ -16,11 +14,33 @@
 	const cells = $derived(calendarGrid(year, month, weekStart));
 	const headers = $derived(orderedWeekdays(weekStart).map((d) => WEEKDAYS[d]));
 
-	const dueByDay = $derived.by(() => {
-		const byDay: Record<string, Assignment[]> = {};
+	interface CalendarEvent {
+		id: string;
+		title: string;
+		color: string;
+		done: boolean;
+	}
+
+	const eventsByDay = $derived.by(() => {
+		const byDay: Record<string, CalendarEvent[]> = {};
 		for (const a of planner.assignments) {
 			const k = dayKey(new Date(a.due_at));
-			(byDay[k] ??= []).push(a);
+			const course = planner.courseById(a.course_id);
+			(byDay[k] ??= []).push({
+				id: `assignment-${a.id}`,
+				title: a.kind === 'test' ? `Test: ${a.title}` : a.title,
+				color: course?.color ?? 'var(--faint)',
+				done: a.status === 'done'
+			});
+		}
+		for (const session of planner.studySessions) {
+			const k = dayKey(new Date(session.starts_at));
+			(byDay[k] ??= []).push({
+				id: `study-${session.id}`,
+				title: `Study: ${session.title}`,
+				color: 'var(--amber)',
+				done: false
+			});
 		}
 		return byDay;
 	});
@@ -46,6 +66,12 @@
 			const colors = (out[o.date] ??= []);
 			if (!colors.includes(o.course.color)) colors.push(o.course.color);
 		}
+		for (const session of planner.studySessions) {
+			const key = dayKey(new Date(session.starts_at));
+			if (key < dayKey(cells[0]) || key > dayKey(cells[cells.length - 1])) continue;
+			const colors = (out[key] ??= []);
+			if (!colors.includes('var(--amber)')) colors.push('var(--amber)');
+		}
 		return out;
 	});
 </script>
@@ -61,7 +87,7 @@
 			{@const key = dayKey(d)}
 			{@const inMonth = d.getMonth() === month}
 			{@const dots = colorsByDay[key] ?? []}
-			{@const due = dueByDay[key] ?? []}
+			{@const events = eventsByDay[key] ?? []}
 			<button
 				class="cell"
 				class:out={!inMonth}
@@ -79,19 +105,14 @@
 					{/if}
 				</div>
 				<div class="events">
-					{#each due.slice(0, 3) as a (a.id)}
-						{@const course = planner.courseById(a.course_id)}
-						<span
-							class="ev"
-							class:done={a.status === 'done'}
-							style="--c:{course?.color ?? 'var(--faint)'}"
-						>
+					{#each events.slice(0, 3) as event (event.id)}
+						<span class="ev" class:done={event.done} style="--c:{event.color}">
 							<span class="ev-dot"></span>
-							<span class="ev-title">{a.title}</span>
+							<span class="ev-title">{event.title}</span>
 						</span>
 					{/each}
-					{#if due.length > 3}
-						<span class="more">+{due.length - 3} more</span>
+					{#if events.length > 3}
+						<span class="more">+{events.length - 3} more</span>
 					{/if}
 				</div>
 			</button>

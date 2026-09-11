@@ -2,7 +2,7 @@
 	import { getPlanner } from '$lib/planner.svelte';
 	import { expandOccurrences } from '$lib/schedule';
 	import { dayKey, formatTime, isToday, minutesOf, weekDays, WEEKDAYS } from '$lib/date';
-	import type { Assignment, ClassOccurrence } from '$lib/types';
+	import type { Assignment, StudySession } from '$lib/types';
 	import Icon from './Icon.svelte';
 
 	const planner = getPlanner();
@@ -21,13 +21,51 @@
 
 	const days = $derived(weekDays(date, weekStart));
 
-	const occurrences = $derived(
-		expandOccurrences(days[0], days[6], {
+	interface TimelineItem {
+		id: string;
+		date: string;
+		start: string;
+		end: string;
+		title: string;
+		detail: string;
+		color: string;
+	}
+
+	const occurrences = $derived.by(() => {
+		const classes: TimelineItem[] = expandOccurrences(days[0], days[6], {
 			courses: planner.courses,
 			meetings: planner.meetings,
 			terms: planner.terms
-		})
-	);
+		}).map((occ) => ({
+			id: `class-${occ.meeting.id}-${occ.date}`,
+			date: occ.date,
+			start: occ.start,
+			end: occ.end,
+			title: occ.course.code ?? occ.course.title,
+			detail: `${occ.course.title}${occ.course.location ? ` · ${occ.course.location}` : ''}`,
+			color: occ.course.color
+		}));
+		const start = dayKey(days[0]);
+		const end = dayKey(days[6]);
+		const study: TimelineItem[] = planner.studySessions.flatMap((session: StudySession) => {
+			const date = dayKey(new Date(session.starts_at));
+			if (date < start || date > end) return [];
+			return [
+				{
+					id: `study-${session.id}`,
+					date,
+					start: new Date(session.starts_at).toTimeString().slice(0, 5),
+					end: new Date(session.ends_at).toTimeString().slice(0, 5),
+					title: session.title,
+					detail: 'Study session',
+					color: 'var(--amber)'
+				}
+			];
+		});
+		return [...classes, ...study].sort(
+			(a, b) => a.date.localeCompare(b.date) || minutesOf(a.start) - minutesOf(b.start)
+		);
+	});
 
 	// Grid spans whole hours around the week's earliest start and latest end.
 	const bounds = $derived.by(() => {
@@ -55,20 +93,20 @@
 	 * class has already ended.
 	 */
 	interface Placed {
-		occ: ClassOccurrence;
+		item: TimelineItem;
 		lane: number;
 		lanes: number;
 	}
 
-	function place(list: ClassOccurrence[]): Placed[] {
+	function place(list: TimelineItem[]): Placed[] {
 		const out: Placed[] = [];
 		let cluster: Placed[] = [];
 		let laneEnds: number[] = [];
 		let clusterEnd = -Infinity;
 
 		// `list` arrives sorted by start time.
-		for (const occ of list) {
-			const start = minutesOf(occ.start);
+		for (const item of list) {
+			const start = minutesOf(item.start);
 			// A gap with every class so far closes the cluster.
 			if (start >= clusterEnd) {
 				for (const p of cluster) p.lanes = laneEnds.length;
@@ -79,10 +117,10 @@
 			}
 			let lane = laneEnds.findIndex((end) => end <= start);
 			if (lane === -1) lane = laneEnds.length;
-			const end = minutesOf(occ.end);
+			const end = minutesOf(item.end);
 			laneEnds[lane] = end;
 			clusterEnd = Math.max(clusterEnd, end);
-			cluster.push({ occ, lane, lanes: 1 });
+			cluster.push({ item, lane, lanes: 1 });
 		}
 		for (const p of cluster) p.lanes = laneEnds.length;
 		out.push(...cluster);
@@ -92,8 +130,8 @@
 	const byDay = $derived.by(() => {
 		// `occurrences` is sorted by date then start, so each day's list stays in
 		// start order — which `place` relies on.
-		const grouped: Record<string, ClassOccurrence[]> = {};
-		for (const o of occurrences) (grouped[o.date] ??= []).push(o);
+		const grouped: Record<string, TimelineItem[]> = {};
+		for (const item of occurrences) (grouped[item.date] ??= []).push(item);
 
 		const placed: Record<string, Placed[]> = {};
 		for (const key of Object.keys(grouped)) placed[key] = place(grouped[key]);
@@ -111,14 +149,14 @@
 
 	const hasDue = $derived(days.some((d) => (dueByDay[dayKey(d)]?.length ?? 0) > 0));
 
-	function top(occ: ClassOccurrence): number {
-		return ((minutesOf(occ.start) - bounds.start) / 60) * HOUR_PX;
+	function top(item: TimelineItem): number {
+		return ((minutesOf(item.start) - bounds.start) / 60) * HOUR_PX;
 	}
-	function height(occ: ClassOccurrence): number {
-		return Math.max(18, ((minutesOf(occ.end) - minutesOf(occ.start)) / 60) * HOUR_PX);
+	function height(item: TimelineItem): number {
+		return Math.max(18, ((minutesOf(item.end) - minutesOf(item.start)) / 60) * HOUR_PX);
 	}
-	function isShort(occ: ClassOccurrence): boolean {
-		return minutesOf(occ.end) - minutesOf(occ.start) < 50;
+	function isShort(item: TimelineItem): boolean {
+		return minutesOf(item.end) - minutesOf(item.start) < 50;
 	}
 </script>
 
@@ -173,27 +211,24 @@
 					<div class="slot" style="height:{HOUR_PX}px"></div>
 				{/each}
 
-				{#each byDay[key] ?? [] as p (p.occ.meeting.id)}
+				{#each byDay[key] ?? [] as p (p.item.id)}
 					{@const w = 100 / p.lanes}
 					<button
 						class="block"
-						class:short={isShort(p.occ)}
-						style="--c:{p.occ.course.color}; top:{top(p.occ)}px; height:{height(
-							p.occ
+						class:short={isShort(p.item)}
+						style="--c:{p.item.color}; top:{top(p.item)}px; height:{height(
+							p.item
 						)}px; left:calc({p.lane * w}% + 2px); width:calc({w}% - 4px)"
 						onclick={() => onselect(d)}
-						title="{p.occ.course.title} · {formatTime(p.occ.start)}–{formatTime(p.occ.end)}{p.occ
-							.course.location
-							? ' · ' + p.occ.course.location
-							: ''}"
+						title="{p.item.detail} · {formatTime(p.item.start)}–{formatTime(p.item.end)}"
 					>
 						<!--
 							Only name and time: a week grid block is ~45px tall for a 50-minute
 							class, and a third line pushed the name out of view. The room is
 							still in the hover title and on the day view.
 						-->
-						<span class="b-title">{p.occ.course.code ?? p.occ.course.title}</span>
-						<span class="b-time num">{formatTime(p.occ.start)}</span>
+						<span class="b-title">{p.item.title}</span>
+						<span class="b-time num">{formatTime(p.item.start)}</span>
 					</button>
 				{/each}
 			</div>

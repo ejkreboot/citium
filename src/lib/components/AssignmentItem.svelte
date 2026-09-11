@@ -22,6 +22,7 @@
 		doing: 'timelapse',
 		done: 'task_alt'
 	} as const;
+	const itemIcon = $derived(assignment.kind === 'test' ? 'quiz' : 'assignment');
 </script>
 
 <div
@@ -46,6 +47,9 @@
 			<div class="title">{assignment.title}</div>
 		{/if}
 		<div class="meta">
+			{#if assignment.kind === 'test'}
+				<span class="kind"><Icon name={itemIcon} size={14} /> Test</span>
+			{/if}
 			{#if course}
 				<span class="course-chip"><span class="swatch"></span>{course.code ?? course.title}</span>
 			{/if}
@@ -123,6 +127,13 @@
 		font-family: var(--font-mono);
 		font-size: var(--t-xs);
 		color: var(--muted);
+	}
+	.kind {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.2rem;
+		color: var(--muted);
+		font-size: var(--t-xs);
 	}
 	.swatch {
 		width: 8px;

@@ -458,7 +458,8 @@
 		gap: 0.4rem;
 	}
 	.times input[type='time'] {
-		max-width: 8rem;
+		flex: 0 0 9.5rem;
+		max-width: 9.5rem;
 	}
 	.dash {
 		color: var(--faint);

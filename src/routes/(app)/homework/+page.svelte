@@ -51,7 +51,7 @@
 		<h1>{remaining} to do</h1>
 	</div>
 	<button class="btn btn-primary" onclick={openNew}>
-		<Icon name="add" size={20} /> Add assignment
+		<Icon name="add" size={20} /> Add homework or test
 	</button>
 </header>
 

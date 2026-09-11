@@ -190,7 +190,8 @@ export const mockAssignments: Assignment[] = [
 		notes: 'Sections 1.1–1.4',
 		due_at: '2026-09-04T23:59:00',
 		status: 'todo',
-		priority: 1
+		priority: 1,
+		kind: 'homework'
 	},
 	{
 		id: 'a2',
@@ -200,7 +201,8 @@ export const mockAssignments: Assignment[] = [
 		notes: null,
 		due_at: '2026-09-02T09:00:00',
 		status: 'doing',
-		priority: 0
+		priority: 0,
+		kind: 'homework'
 	},
 	{
 		id: 'a3',
@@ -210,7 +212,8 @@ export const mockAssignments: Assignment[] = [
 		notes: 'The Odyssey, Books 9–12',
 		due_at: '2026-09-15T13:00:00',
 		status: 'todo',
-		priority: 0
+		priority: 0,
+		kind: 'homework'
 	},
 	{
 		id: 'a4',
@@ -220,7 +223,8 @@ export const mockAssignments: Assignment[] = [
 		notes: null,
 		due_at: '2026-09-10T14:30:00',
 		status: 'todo',
-		priority: 0
+		priority: 0,
+		kind: 'homework'
 	},
 	{
 		id: 'a5',
@@ -230,7 +234,8 @@ export const mockAssignments: Assignment[] = [
 		notes: '2 pages, any local gallery',
 		due_at: '2026-09-25T23:59:00',
 		status: 'todo',
-		priority: 0
+		priority: 0,
+		kind: 'homework'
 	},
 	{
 		id: 'a6',
@@ -240,7 +245,8 @@ export const mockAssignments: Assignment[] = [
 		notes: null,
 		due_at: '2026-09-18T23:59:00',
 		status: 'todo',
-		priority: 0
+		priority: 0,
+		kind: 'homework'
 	},
 	{
 		id: 'a7',
@@ -250,7 +256,8 @@ export const mockAssignments: Assignment[] = [
 		notes: 'Chapters 1–3',
 		due_at: '2026-09-09T09:00:00',
 		status: 'todo',
-		priority: 1
+		priority: 1,
+		kind: 'test'
 	}
 ];
 

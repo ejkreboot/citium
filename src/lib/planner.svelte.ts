@@ -13,7 +13,16 @@
 import { getContext, setContext } from 'svelte';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { dayKey } from './date';
-import type { Assignment, AssignmentStatus, ClassMeeting, Course, Note, Term } from './types';
+import type {
+	Assignment,
+	AssignmentKind,
+	AssignmentStatus,
+	ClassMeeting,
+	Course,
+	Note,
+	StudySession,
+	Term
+} from './types';
 
 function uid(): string {
 	return typeof crypto !== 'undefined' && crypto.randomUUID
@@ -26,6 +35,7 @@ export interface SeedData {
 	courses: Course[];
 	meetings: ClassMeeting[];
 	assignments: Assignment[];
+	studySessions: StudySession[];
 	notes: Note[];
 }
 
@@ -45,6 +55,7 @@ class Planner {
 	courses = $state<Course[]>([]);
 	meetings = $state<ClassMeeting[]>([]);
 	assignments = $state<Assignment[]>([]);
+	studySessions = $state<StudySession[]>([]);
 	notes = $state<Note[]>([]);
 	userId = $state<string>('demo-user');
 	seeded = $state(false);
@@ -62,6 +73,7 @@ class Planner {
 		this.courses = data.courses;
 		this.meetings = data.meetings;
 		this.assignments = data.assignments;
+		this.studySessions = data.studySessions;
 		this.notes = data.notes;
 		this.userId = userId;
 		this.seeded = true;
@@ -116,6 +128,7 @@ class Planner {
 		due_at: string;
 		notes?: string | null;
 		priority?: number;
+		kind?: AssignmentKind;
 	}): Assignment {
 		const a: Assignment = {
 			id: uid(),
@@ -125,7 +138,8 @@ class Planner {
 			notes: input.notes ?? null,
 			due_at: input.due_at,
 			status: 'todo',
-			priority: input.priority ?? 0
+			priority: input.priority ?? 0,
+			kind: input.kind ?? 'homework'
 		};
 		this.assignments = [...this.assignments, a];
 		this.run(this.client?.from('assignments').insert(a), 'addAssignment');
@@ -148,6 +162,26 @@ class Planner {
 	removeAssignment(id: string) {
 		this.assignments = this.assignments.filter((a) => a.id !== id);
 		this.run(this.client?.from('assignments').delete().eq('id', id), 'removeAssignment');
+	}
+
+	// --- Study sessions ---
+	addStudySession(input: Omit<StudySession, 'id' | 'user_id'>): StudySession {
+		const session: StudySession = { ...input, id: uid(), user_id: this.userId };
+		this.studySessions = [...this.studySessions, session];
+		this.run(this.client?.from('study_sessions').insert(session), 'addStudySession');
+		return session;
+	}
+
+	updateStudySession(id: string, patch: Partial<StudySession>) {
+		this.studySessions = this.studySessions.map((session) =>
+			session.id === id ? { ...session, ...patch } : session
+		);
+		this.run(this.client?.from('study_sessions').update(patch).eq('id', id), 'updateStudySession');
+	}
+
+	removeStudySession(id: string) {
+		this.studySessions = this.studySessions.filter((session) => session.id !== id);
+		this.run(this.client?.from('study_sessions').delete().eq('id', id), 'removeStudySession');
 	}
 
 	// --- Notes ---

@@ -23,6 +23,14 @@
 		}
 		return byDay;
 	});
+	const studyCountByDay = $derived.by(() => {
+		const byDay: Record<string, number> = {};
+		for (const session of planner.studySessions) {
+			const key = dayKey(new Date(session.starts_at));
+			byDay[key] = (byDay[key] ?? 0) + 1;
+		}
+		return byDay;
+	});
 
 	interface Cell {
 		n: number | null;
@@ -55,7 +63,7 @@
 			for (let day = 1; day <= last; day++) {
 				const key = dayKey(new Date(year, month, day));
 				const term = terms.find((t) => t.start_date <= key && key <= t.end_date);
-				const load = dueByDay[key]?.length ?? 0;
+				const load = (dueByDay[key]?.length ?? 0) + (studyCountByDay[key] ?? 0);
 				const color = term?.color ?? '#5b5b8a';
 				let alpha = 0;
 				if (term) alpha = 0.09; // term band

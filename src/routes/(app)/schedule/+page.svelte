@@ -16,6 +16,8 @@
 	import WeekView from '$lib/components/WeekView.svelte';
 	import MonthView from '$lib/components/MonthView.svelte';
 	import YearView from '$lib/components/YearView.svelte';
+	import StudySessionDialog from '$lib/components/StudySessionDialog.svelte';
+	import type { StudySession } from '$lib/types';
 	import Icon from '$lib/components/Icon.svelte';
 
 	const planner = getPlanner();
@@ -43,6 +45,8 @@
 
 	let view = $state<ViewMode>(initialView);
 	let cursor = $state(initialCursor());
+	let studyOpen = $state(false);
+	let editingStudy = $state<StudySession | null>(null);
 
 	const title = $derived.by(() => {
 		if (view === 'year') return String(cursor.getFullYear());
@@ -72,6 +76,14 @@
 		cursor = new Date(cursor.getFullYear(), month, 1);
 		view = 'month';
 	}
+	function newStudySession() {
+		editingStudy = null;
+		studyOpen = true;
+	}
+	function editStudySession(session: StudySession) {
+		editingStudy = session;
+		studyOpen = true;
+	}
 </script>
 
 <header class="head">
@@ -81,6 +93,9 @@
 	</div>
 
 	<div class="controls">
+		<button class="btn btn-primary" onclick={newStudySession}>
+			<Icon name="add" size={20} /> Add study session
+		</button>
 		<div class="segmented">
 			{#each VIEWS as v (v)}
 				<button aria-pressed={view === v} onclick={() => (view = v)}>
@@ -103,7 +118,7 @@
 
 <div class="stage rise">
 	{#if view === 'day'}
-		<DayView date={cursor} />
+		<DayView date={cursor} oneditstudy={editStudySession} />
 	{:else if view === 'week'}
 		<WeekView date={cursor} {weekStart} onselect={openDay} />
 	{:else if view === 'month'}
@@ -117,6 +132,8 @@
 		<YearView year={cursor.getFullYear()} onselectday={openDay} onselectmonth={openMonth} />
 	{/if}
 </div>
+
+<StudySessionDialog bind:open={studyOpen} editing={editingStudy} date={cursor} />
 
 <style>
 	.head {

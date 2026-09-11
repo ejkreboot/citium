@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { getPlanner } from '$lib/planner.svelte';
-	import type { Assignment } from '$lib/types';
+	import type { Assignment, AssignmentKind } from '$lib/types';
 	import Icon from './Icon.svelte';
 
 	const planner = getPlanner();
@@ -17,6 +17,7 @@
 	let dueTime = $state('23:59');
 	let notes = $state('');
 	let high = $state(false);
+	let kind = $state<AssignmentKind>('homework');
 
 	function reset() {
 		if (editing) {
@@ -27,6 +28,7 @@
 			dueTime = d.toTimeString().slice(0, 5);
 			notes = editing.notes ?? '';
 			high = editing.priority > 0;
+			kind = editing.kind;
 		} else {
 			title = '';
 			courseId = planner.courses[0]?.id ?? '';
@@ -34,6 +36,7 @@
 			dueTime = '23:59';
 			notes = '';
 			high = false;
+			kind = 'homework';
 		}
 	}
 
@@ -56,7 +59,8 @@
 				course_id: courseId || null,
 				due_at,
 				notes: notes.trim() || null,
-				priority: high ? 1 : 0
+				priority: high ? 1 : 0,
+				kind
 			});
 		} else {
 			planner.addAssignment({
@@ -64,7 +68,8 @@
 				course_id: courseId || null,
 				due_at,
 				notes: notes.trim() || null,
-				priority: high ? 1 : 0
+				priority: high ? 1 : 0,
+				kind
 			});
 		}
 		open = false;
@@ -79,7 +84,7 @@
 <dialog bind:this={dialog} onclose={() => (open = false)} class="dlg">
 	<form onsubmit={submit}>
 		<div class="dlg-head">
-			<h2>{editing ? 'Edit assignment' : 'New assignment'}</h2>
+			<h2>{editing ? 'Edit item' : 'New item'}</h2>
 			<button
 				type="button"
 				class="btn btn-icon btn-ghost"
@@ -94,6 +99,14 @@
 			<label for="a-title">Title</label>
 			<!-- svelte-ignore a11y_autofocus -->
 			<input id="a-title" type="text" bind:value={title} placeholder="Problem Set 3" autofocus />
+		</div>
+
+		<div class="field">
+			<label for="a-kind">Type</label>
+			<select id="a-kind" bind:value={kind}>
+				<option value="homework">Homework</option>
+				<option value="test">Test or quiz</option>
+			</select>
 		</div>
 
 		<div class="two">

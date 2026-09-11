@@ -22,7 +22,7 @@ export const load: LayoutServerLoad = async ({ locals: { supabase, safeGetSessio
 	const since = new Date();
 	since.setDate(since.getDate() - HISTORY_DAYS);
 
-	const [terms, courses, meetings, assignments, notes] = await Promise.all([
+	const [terms, courses, meetings, assignments, studySessions, notes] = await Promise.all([
 		// Structural tables grow only as fast as courses are taken, and the
 		// schedule is wrong if a course's meetings are partially loaded — so these
 		// stay complete.
@@ -35,6 +35,15 @@ export const load: LayoutServerLoad = async ({ locals: { supabase, safeGetSessio
 			.select('*')
 			.gte('due_at', since.toISOString())
 			.order('due_at', { ascending: true })
+			.limit(ASSIGNMENT_LIMIT),
+		// One-off study blocks share the schedule with recurring meetings. Keep
+		// enough recent history for the planner's date views without loading a
+		// user's complete archive on every request.
+		supabase
+			.from('study_sessions')
+			.select('*')
+			.gte('ends_at', since.toISOString())
+			.order('starts_at', { ascending: true })
 			.limit(ASSIGNMENT_LIMIT),
 		// Pinned first so a pinned-but-stale note can never fall outside the limit.
 		supabase
@@ -50,6 +59,7 @@ export const load: LayoutServerLoad = async ({ locals: { supabase, safeGetSessio
 		courses: courses.data ?? [],
 		meetings: meetings.data ?? [],
 		assignments: assignments.data ?? [],
+		studySessions: studySessions.data ?? [],
 		notes: notes.data ?? []
 	};
 };
