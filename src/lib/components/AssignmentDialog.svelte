@@ -189,7 +189,8 @@
 		gap: 0.4rem;
 	}
 	.due-row input[type='time'] {
-		max-width: 7.5rem;
+		flex: 0 0 9.5rem;
+		max-width: 9.5rem;
 	}
 	.checkline {
 		display: flex;
