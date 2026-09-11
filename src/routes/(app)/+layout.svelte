@@ -56,7 +56,7 @@
 	const nav = [
 		{ href: home, label: 'Today', icon: 'wb_twilight' },
 		{ href: resolve('/schedule'), label: 'Schedule', icon: 'calendar_month' },
-		{ href: resolve('/homework'), label: 'Homework', icon: 'checklist' },
+		{ href: resolve('/homework'), label: 'Homework & Tests', icon: 'checklist' },
 		{ href: resolve('/notes'), label: 'Notes', icon: 'edit_note' },
 		{ href: resolve('/courses'), label: 'Courses', icon: 'school' }
 	];
