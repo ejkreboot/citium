@@ -30,6 +30,15 @@ function uid(): string {
 		: 'id-' + Math.floor(performance.now() * 1000).toString(36);
 }
 
+/** Best-effort human-readable text from a PostgREST/Supabase error. */
+function errorMessage(error: unknown): string {
+	if (typeof error === 'object' && error !== null && 'message' in error) {
+		const { message } = error as { message?: unknown };
+		if (typeof message === 'string' && message) return message;
+	}
+	return 'The change could not be saved.';
+}
+
 export interface SeedData {
 	terms: Term[];
 	courses: Course[];
@@ -46,6 +55,15 @@ interface PendingNote {
 	updated_at: string;
 }
 
+/** The reactive row collections an optimistic write can touch. */
+type Collection = 'terms' | 'courses' | 'meetings' | 'assignments' | 'studySessions' | 'notes';
+
+/** A write that was rejected by the database, for the UI to surface. */
+export interface SaveError {
+	label: string;
+	message: string;
+}
+
 // Not exported as a value: the store is only ever obtained through
 // createPlanner()/getPlanner(), and exporting the class makes
 // `svelte/prefer-svelte-reactivity` read its deliberately non-reactive
@@ -59,6 +77,13 @@ class Planner {
 	notes = $state<Note[]>([]);
 	userId = $state<string>('demo-user');
 	seeded = $state(false);
+
+	/**
+	 * The most recent rejected write, or null. Optimistic mutations are rolled
+	 * back when the DB refuses them, so without this the UI would silently snap
+	 * back to the old value and leave the user guessing.
+	 */
+	saveError = $state<SaveError | null>(null);
 
 	private client: SupabaseClient | null = null;
 	private notePending = new Map<string, PendingNote>();
@@ -79,10 +104,45 @@ class Planner {
 		this.seeded = true;
 	}
 
-	private async run(op: PromiseLike<{ error: unknown }> | undefined, label: string) {
+	/**
+	 * Persist an optimistic mutation. On failure the local edit is reverted via
+	 * `rollback` and the error is published to `saveError`, so a write the DB
+	 * refused never lingers on screen as if it had been saved.
+	 */
+	private async run(
+		op: PromiseLike<{ error: unknown }> | undefined,
+		label: string,
+		rollback?: () => void
+	) {
 		if (!this.client || !op) return;
 		const { error } = await op;
-		if (error) console.error(`[planner] ${label} failed:`, error);
+		if (!error) return;
+		console.error(`[planner] ${label} failed:`, error);
+		rollback?.();
+		this.saveError = { label, message: errorMessage(error) };
+	}
+
+	/**
+	 * Capture the given collections and return a function restoring them.
+	 *
+	 * Reverting whole arrays also discards edits made to those collections while
+	 * the write was in flight. That is the deliberate trade: these writes settle
+	 * in milliseconds, and showing stale-but-real server state beats showing a row
+	 * that does not exist.
+	 */
+	private snapshot(...keys: Collection[]): () => void {
+		// Indexed access through a narrowed alias: assigning back through it
+		// still goes via the $state setter, so reactivity is preserved.
+		const store = this as unknown as Record<Collection, unknown[]>;
+		const saved = keys.map((k) => [k, store[k]] as const);
+		return () => {
+			for (const [k, rows] of saved) store[k] = rows;
+		};
+	}
+
+	/** Dismiss the surfaced save error. */
+	clearSaveError() {
+		this.saveError = null;
 	}
 
 	courseById(id: string | null): Course | undefined {
@@ -141,14 +201,20 @@ class Planner {
 			priority: input.priority ?? 0,
 			kind: input.kind ?? 'homework'
 		};
+		const revert = this.snapshot('assignments');
 		this.assignments = [...this.assignments, a];
-		this.run(this.client?.from('assignments').insert(a), 'addAssignment');
+		this.run(this.client?.from('assignments').insert(a), 'addAssignment', revert);
 		return a;
 	}
 
 	updateAssignment(id: string, patch: Partial<Assignment>) {
+		const revert = this.snapshot('assignments');
 		this.assignments = this.assignments.map((a) => (a.id === id ? { ...a, ...patch } : a));
-		this.run(this.client?.from('assignments').update(patch).eq('id', id), 'updateAssignment');
+		this.run(
+			this.client?.from('assignments').update(patch).eq('id', id),
+			'updateAssignment',
+			revert
+		);
 	}
 
 	cycleStatus(id: string) {
@@ -160,28 +226,40 @@ class Planner {
 	}
 
 	removeAssignment(id: string) {
+		const revert = this.snapshot('assignments');
 		this.assignments = this.assignments.filter((a) => a.id !== id);
-		this.run(this.client?.from('assignments').delete().eq('id', id), 'removeAssignment');
+		this.run(this.client?.from('assignments').delete().eq('id', id), 'removeAssignment', revert);
 	}
 
 	// --- Study sessions ---
 	addStudySession(input: Omit<StudySession, 'id' | 'user_id'>): StudySession {
 		const session: StudySession = { ...input, id: uid(), user_id: this.userId };
+		const revert = this.snapshot('studySessions');
 		this.studySessions = [...this.studySessions, session];
-		this.run(this.client?.from('study_sessions').insert(session), 'addStudySession');
+		this.run(this.client?.from('study_sessions').insert(session), 'addStudySession', revert);
 		return session;
 	}
 
 	updateStudySession(id: string, patch: Partial<StudySession>) {
+		const revert = this.snapshot('studySessions');
 		this.studySessions = this.studySessions.map((session) =>
 			session.id === id ? { ...session, ...patch } : session
 		);
-		this.run(this.client?.from('study_sessions').update(patch).eq('id', id), 'updateStudySession');
+		this.run(
+			this.client?.from('study_sessions').update(patch).eq('id', id),
+			'updateStudySession',
+			revert
+		);
 	}
 
 	removeStudySession(id: string) {
+		const revert = this.snapshot('studySessions');
 		this.studySessions = this.studySessions.filter((session) => session.id !== id);
-		this.run(this.client?.from('study_sessions').delete().eq('id', id), 'removeStudySession');
+		this.run(
+			this.client?.from('study_sessions').delete().eq('id', id),
+			'removeStudySession',
+			revert
+		);
 	}
 
 	// --- Notes ---
@@ -193,8 +271,9 @@ class Planner {
 			pinned: false,
 			updated_at: new Date().toISOString()
 		};
+		const revert = this.snapshot('notes');
 		this.notes = [n, ...this.notes];
-		this.run(this.client?.from('notes').insert(n), 'addNote');
+		this.run(this.client?.from('notes').insert(n), 'addNote', revert);
 		return n;
 	}
 
@@ -204,6 +283,10 @@ class Planner {
 
 		// Debounce DB writes while typing. The pending entry is dropped as soon as
 		// it fires (or is superseded) so the map tracks only live timers.
+		//
+		// Deliberately passes no rollback: by the time a rejected write lands the
+		// user has usually typed on, and yanking the editor back to older text
+		// would destroy work. The error still surfaces via `saveError`.
 		this.cancelNoteWrite(id);
 		const timer = setTimeout(() => {
 			this.notePending.delete(id);
@@ -248,56 +331,64 @@ class Planner {
 		const note = this.notes.find((n) => n.id === id);
 		if (!note) return;
 		const pinned = !note.pinned;
+		const revert = this.snapshot('notes');
 		this.notes = this.notes.map((n) => (n.id === id ? { ...n, pinned } : n));
-		this.run(this.client?.from('notes').update({ pinned }).eq('id', id), 'togglePin');
+		this.run(this.client?.from('notes').update({ pinned }).eq('id', id), 'togglePin', revert);
 	}
 
 	removeNote(id: string) {
 		// Drop any debounced edit first: it would fire after the row is gone.
 		this.cancelNoteWrite(id);
+		const revert = this.snapshot('notes');
 		this.notes = this.notes.filter((n) => n.id !== id);
-		this.run(this.client?.from('notes').delete().eq('id', id), 'removeNote');
+		this.run(this.client?.from('notes').delete().eq('id', id), 'removeNote', revert);
 	}
 
 	// --- Courses & terms ---
 	addTerm(input: Omit<Term, 'id' | 'user_id'>): Term {
 		const t: Term = { ...input, id: uid(), user_id: this.userId };
+		const revert = this.snapshot('terms');
 		this.terms = [...this.terms, t];
-		this.run(this.client?.from('terms').insert(t), 'addTerm');
+		this.run(this.client?.from('terms').insert(t), 'addTerm', revert);
 		return t;
 	}
 
 	updateTerm(id: string, patch: Partial<Term>) {
+		const revert = this.snapshot('terms');
 		this.terms = this.terms.map((t) => (t.id === id ? { ...t, ...patch } : t));
-		this.run(this.client?.from('terms').update(patch).eq('id', id), 'updateTerm');
+		this.run(this.client?.from('terms').update(patch).eq('id', id), 'updateTerm', revert);
 	}
 
 	removeTerm(id: string) {
+		const revert = this.snapshot('terms', 'courses');
 		this.terms = this.terms.filter((t) => t.id !== id);
 		// Courses outlive their term; the FK is `on delete set null`, so mirror
 		// that locally. A course with no term falls back to a custom range or
 		// recurs unbounded.
 		this.courses = this.courses.map((c) => (c.term_id === id ? { ...c, term_id: null } : c));
-		this.run(this.client?.from('terms').delete().eq('id', id), 'removeTerm');
+		this.run(this.client?.from('terms').delete().eq('id', id), 'removeTerm', revert);
 	}
 
 	addCourse(input: Omit<Course, 'id' | 'user_id'>): Course {
 		const c: Course = { ...input, id: uid(), user_id: this.userId };
+		const revert = this.snapshot('courses');
 		this.courses = [...this.courses, c];
-		this.run(this.client?.from('courses').insert(c), 'addCourse');
+		this.run(this.client?.from('courses').insert(c), 'addCourse', revert);
 		return c;
 	}
 
 	updateCourse(id: string, patch: Partial<Course>) {
+		const revert = this.snapshot('courses');
 		this.courses = this.courses.map((c) => (c.id === id ? { ...c, ...patch } : c));
-		this.run(this.client?.from('courses').update(patch).eq('id', id), 'updateCourse');
+		this.run(this.client?.from('courses').update(patch).eq('id', id), 'updateCourse', revert);
 	}
 
 	removeCourse(id: string) {
+		const revert = this.snapshot('courses', 'meetings');
 		this.courses = this.courses.filter((c) => c.id !== id);
 		this.meetings = this.meetings.filter((m) => m.course_id !== id);
 		// class_meetings cascade-delete in the DB via FK.
-		this.run(this.client?.from('courses').delete().eq('id', id), 'removeCourse');
+		this.run(this.client?.from('courses').delete().eq('id', id), 'removeCourse', revert);
 	}
 
 	async setMeetings(
@@ -311,15 +402,21 @@ class Planner {
 			user_id: this.userId,
 			course_id: courseId
 		}));
+		const revert = this.snapshot('meetings');
 		this.meetings = [...others, ...next];
 
 		if (this.client) {
 			await this.run(
 				this.client.from('class_meetings').delete().eq('course_id', courseId),
-				'setMeetings:delete'
+				'setMeetings:delete',
+				revert
 			);
 			if (next.length) {
-				await this.run(this.client.from('class_meetings').insert(next), 'setMeetings:insert');
+				await this.run(
+					this.client.from('class_meetings').insert(next),
+					'setMeetings:insert',
+					revert
+				);
 			}
 		}
 	}

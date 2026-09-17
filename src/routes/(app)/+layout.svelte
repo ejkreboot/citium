@@ -4,6 +4,7 @@
 	import { goto } from '$app/navigation';
 	import { asset, resolve } from '$app/paths';
 	import Icon from '$lib/components/Icon.svelte';
+	import SaveError from '$lib/components/SaveError.svelte';
 	import { createPlanner } from '$lib/planner.svelte';
 
 	let { data, children } = $props();
@@ -137,6 +138,8 @@
 		{@render children()}
 	</main>
 </div>
+
+<SaveError />
 
 <style>
 	.shell {
